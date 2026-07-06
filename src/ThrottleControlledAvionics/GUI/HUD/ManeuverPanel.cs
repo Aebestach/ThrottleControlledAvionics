@@ -17,6 +17,8 @@ namespace ThrottleControlledAvionics
 
         protected override void init_controller()
         {
+            Controller.ManeuverSwitch.AbortLabel = Loc.T("Maneuver_Abort", "Abort Maneuver");
+            Controller.ManeuverSwitch.ExecuteLabel = Loc.T("Maneuver_Execute", "Execute Node");
             if(WRP != null)
             {
                 Controller.WarpToggle.gameObject.SetActive(true);
@@ -32,6 +34,24 @@ namespace ThrottleControlledAvionics
             else
                 Controller.ManeuverSwitch.SetActive(false);
             base.init_controller();
+        }
+
+        protected override void LocalizeHud()
+        {
+            HudLocalization.SetToggleTooltip(Controller.WarpToggle,
+                "Maneuver_WarpTip", "Warp to the burn");
+            foreach(var tt in Controller.GetComponentsInChildren<AT_Utils.UI.TooltipTrigger>(true))
+            {
+                switch(tt.text)
+                {
+                case "Countdown":
+                    HudLocalization.SetTooltip(tt, "Maneuver_CountdownTip", tt.text);
+                    break;
+                case "Burn duration":
+                    HudLocalization.SetTooltip(tt, "Maneuver_TTBTip", tt.text);
+                    break;
+                }
+            }
         }
 
         private void onWarpChanged(bool state)

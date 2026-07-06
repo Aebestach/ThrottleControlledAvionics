@@ -41,6 +41,7 @@ namespace ThrottleControlledAvionics
         [Persistent] public float ActionListHeight     = 110f;
         [Persistent] public float MaxAAFilter          = 1f;
         [Persistent] public float ExhaustSafeDist      = 1.1f;
+        [Persistent] public float HudUiScale           = 0.65f;
 
         [Persistent] public string PersistentRotationName = "PersistentRotation";
         [Persistent] public float PersistentRotationThreshold = 5e-7f;

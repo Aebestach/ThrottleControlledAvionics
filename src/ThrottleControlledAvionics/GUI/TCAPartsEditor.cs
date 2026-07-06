@@ -147,6 +147,13 @@ namespace ThrottleControlledAvionics
                     parts.ForEach(p => CFG.EnabledTCAParts.Add(p.Name));
                     update_part_status();
                 }
+                if(GUILayout.Button(Loc.Content("DisableAll", "Disable All", "DisableAllTip", "Disable all modules"),
+                    Styles.close_button,
+                    GUILayout.ExpandWidth(true)))
+                {
+                    CFG.EnabledTCAParts.Clear();
+                    update_part_status();
+                }
             }
             if(GUILayout.Button(Loc.T("Close", "Close"), Styles.close_button, GUILayout.ExpandWidth(true)))
                 Show(false);

@@ -526,6 +526,8 @@ namespace ThrottleControlledAvionics
                 for(int j = 0, tCount = t.rcs.thrusterTransforms.Count; j < tCount; j++)
                 {
                     var T = t.rcs.thrusterTransforms[j];
+                    if(!RCSWrapper.IsThrusterActive(T))
+                        continue;
                     var thrust = refT.InverseTransformDirection((t.rcs.useZaxis ? T.forward : T.up) * t.maxThrust);
                     MaxThrustRCS.Add(thrust);
                     var pos = refT.InverseTransformDirection(T.position - VSL.Physics.wCoM);

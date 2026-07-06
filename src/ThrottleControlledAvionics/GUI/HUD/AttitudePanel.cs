@@ -95,6 +95,32 @@ namespace ThrottleControlledAvionics
 
         private void disableCurrentCue() => CFG.AT.XOff();
 
+        protected override void LocalizeHud()
+        {
+            var cues = Controller.CuesPanel;
+            localizeCue(cues.Kill, Attitude.KillRotation);
+            localizeCue(cues.Hold, Attitude.HoldAttitude);
+            localizeCue(cues.Maneuver, Attitude.ManeuverNode);
+            localizeCue(cues.PG, Attitude.Prograde);
+            localizeCue(cues.RG, Attitude.Retrograde);
+            localizeCue(cues.Rp, Attitude.Radial);
+            localizeCue(cues.Rm, Attitude.AntiRadial);
+            localizeCue(cues.Np, Attitude.Normal);
+            localizeCue(cues.Nm, Attitude.AntiNormal);
+            localizeCue(cues.Tp, Attitude.Target);
+            localizeCue(cues.Tm, Attitude.AntiTarget);
+            localizeCue(cues.rVp, Attitude.RelVel);
+            localizeCue(cues.rVm, Attitude.AntiRelVel);
+            localizeCue(cues.Tp_rVm, Attitude.TargetCorrected);
+            HudLocalization.SetToggleTooltip(Controller.TSASToggle,
+                "AttitudeTSASTip", "Push to toggle attitude controls");
+            HudLocalization.SetTooltip(Controller.CurrentCue.CurrentCueTooltip,
+                "AttitudeErrorTip", "Attitude error");
+        }
+
+        static void localizeCue(UnityEngine.UI.Toggle toggle, Attitude att)
+        { HudLocalization.SetToggleTooltip(toggle, null, CueLong(att)); }
+
         protected override void OnLateUpdate()
         {
             base.OnLateUpdate();
@@ -112,7 +138,9 @@ namespace ThrottleControlledAvionics
                     ? Colors.Enabled
                     : Colors.Neutral;
                 Controller.CurrentCue.CurrentCueText.text = CueShort(CFG.AT.state);
-                Controller.CurrentCue.CurrentCueTooltip.text = Loc.F("AttitudeCueTooltip", "<<1>>. Click to disable.", CueLong(CFG.AT.state));
+                var cueTip = Loc.F("AttitudeCueTooltip", "<<1>>. Click to disable.", CueLong(CFG.AT.state));
+                if(Controller.CurrentCue.CurrentCueTooltip.text != cueTip)
+                    Controller.CurrentCue.CurrentCueTooltip.SetText(cueTip);
             }
             else
                 Controller.CurrentCue.SetActive(false);

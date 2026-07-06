@@ -99,6 +99,21 @@ namespace ThrottleControlledAvionics
             this.rcs = rcs;
         }
 
+        public static bool IsThrusterActive(Transform thruster)
+        {
+            return thruster != null && thruster.gameObject.activeInHierarchy;
+        }
+
+        public bool HasActiveThrusters()
+        {
+            for(int i = 0, count = rcs.thrusterTransforms.Count; i < count; i++)
+            {
+                if(IsThrusterActive(rcs.thrusterTransforms[i]))
+                    return true;
+            }
+            return false;
+        }
+
         public override void InitLimits()
         { limit = best_limit = limit_tmp = 1f; }
 
@@ -112,7 +127,7 @@ namespace ThrottleControlledAvionics
             {
                 var thrust = rcs.thrustForces[i];
                 var T = rcs.thrusterTransforms[i];
-                if(T == null || thrust.Equals(0)) continue;
+                if(T == null || thrust.Equals(0) || !IsThrusterActive(T)) continue;
                 total_thrust_dir += (rcs.useZaxis ? T.forward : T.up) * thrust;
                 avg_thrust_pos += T.position * thrust;
                 total_thrust += thrust;
@@ -163,7 +178,7 @@ namespace ThrottleControlledAvionics
         }
 
         public override bool isOperational
-        { get { return rcs.rcsEnabled && rcs.thrusterTransforms.Count > 0 && rcs.thrusterTransforms.Count == rcs.thrustForces.Length; } }
+        { get { return rcs.rcsEnabled && rcs.thrusterTransforms.Count > 0 && rcs.thrusterTransforms.Count == rcs.thrustForces.Length && HasActiveThrusters(); } }
 
         public override string ToString()
         {

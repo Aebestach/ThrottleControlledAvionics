@@ -52,6 +52,44 @@ namespace ThrottleControlledAvionics
                 Controller.PauseSound(false);
         }
 
+        protected override void LocalizeHud()
+        {
+            HudLocalization.SetIndicatorTooltip(Controller.VSC,
+                "Status_VSC_Tip", "Vertical speed control");
+            HudLocalization.SetIndicatorTooltip(Controller.NoEC,
+                "Status_NoEC_Tip", "No electric charge");
+            HudLocalization.SetIndicatorTooltip(Controller.VesselCollision,
+                "Status_VesselCollision_Tip", "Collision with another vessel");
+            HudLocalization.SetIndicatorTooltip(Controller.TerrainCollision,
+                "Status_TerrainCollision_Tip", "Collision with terrain");
+            HudLocalization.SetIndicatorTooltip(Controller.Navigation,
+                "Status_Navigation_Tip", "Automatic navigation");
+            HudLocalization.SetIndicatorTooltip(Controller.Ascending,
+                "Status_Ascending_Tip", "Gaining altitude");
+            HudLocalization.SetIndicatorTooltip(Controller.NoEngines,
+                "Status_NoEngines_Tip", "No active engines");
+            HudLocalization.SetIndicatorTooltip(Controller.SmartEngines,
+                "SmartEnginesTip", "Group engines by thrust direction and automatically use appropriate group for a maneuver");
+            HudLocalization.SetIndicatorTooltip(Controller.LowControlAuthority,
+                "Status_LowControl_Tip", "Low control authority");
+            HudLocalization.SetIndicatorTooltip(Controller.ALT,
+                "Status_ALT_Tip", "Altitude control");
+            HudLocalization.SetIndicatorTooltip(Controller.EnginesUnoptimized,
+                "Status_EnginesUnoptimized_Tip", "Unbalanced engines");
+            HudLocalization.SetIndicatorTooltip(Controller.LoosingAltitude,
+                "Status_LosingAltitude_Tip", "Losing altitude");
+            HudLocalization.SetIndicatorTooltip(Controller.VTOLMode,
+                "Status_VTOLMode_Tip", "Copter-style control mode");
+            HudLocalization.SetIndicatorTooltip(Controller.Stop,
+                "Status_Stop_Tip", "Stop or Anchor");
+            HudLocalization.SetIndicatorTooltip(Controller.Stabilizing,
+                "Status_Stabilizing_Tip", "Stabilizing VTOL flight");
+            HudLocalization.SetIndicatorTooltip(Controller.VTOLAssist,
+                "VTOLAssistTipAdv", "Assist with vertical takeoff and landing");
+            HudLocalization.SetToggleTooltip(Controller.soundToggle,
+                "Status_SoundTip", "Toggle alert sounds");
+        }
+
         protected override void OnLateUpdate()
         {
             base.OnLateUpdate();

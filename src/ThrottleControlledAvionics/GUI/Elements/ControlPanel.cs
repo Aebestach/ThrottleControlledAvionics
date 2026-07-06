@@ -8,6 +8,7 @@
 using System.Collections.Generic;
 using AT_Utils;
 using AT_Utils.UI;
+using UnityEngine;
 
 
 namespace ThrottleControlledAvionics
@@ -32,11 +33,36 @@ namespace ThrottleControlledAvionics
 
         protected List<TCAModule> AllModules = new List<TCAModule>();
 
+        float lastHudUiScale = -1f;
+
         protected virtual bool shouldShow => Connected && TCA.Valid && CFG.GUIVisible;
+
+        protected virtual void LocalizeHud() {}
+
+        protected void ApplyHudScale(bool force = false)
+        {
+            if(Controller == null)
+                return;
+            var hudScale = Mathf.Clamp(GLB.HudUiScale, 0.5f, 1.5f);
+            if(!Mathf.Approximately(hudScale, GLB.HudUiScale))
+                GLB.HudUiScale = hudScale;
+            var expectedScale = UIScale.HudFactor(hudScale);
+            var actualScale = Controller.transform.localScale.x;
+            if(!force
+               && Mathf.Approximately(lastHudUiScale, hudScale)
+               && Mathf.Approximately(actualScale, expectedScale))
+                return;
+            lastHudUiScale = hudScale;
+            UIScale.ApplyTransformScale(Controller.transform, hudScale);
+            foreach(var tt in Controller.GetComponentsInChildren<TooltipTrigger>(true))
+                tt.SetHudScale(hudScale);
+        }
 
         protected override void init_controller()
         {
             base.init_controller();
+            LocalizeHud();
+            ApplyHudScale(true);
             if(Connected)
                 OnLateUpdate();
         }
@@ -70,6 +96,7 @@ namespace ThrottleControlledAvionics
                 return;
             if(IsShown)
             {
+                ApplyHudScale();
                 if(shouldShow)
                     OnLateUpdate();
                 else

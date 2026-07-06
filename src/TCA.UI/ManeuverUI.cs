@@ -39,6 +39,8 @@ namespace TCA.UI
     {
         public Button Button;
         public Text ButtonText;
+        public string AbortLabel = "Abort Maneuver";
+        public string ExecuteLabel = "Execute Node";
         bool maneuverActive;
 
         void Awake()
@@ -58,14 +60,14 @@ namespace TCA.UI
                 maneuverActive = active;
                 if(active)
                 {
-                    ButtonText.text = "Abort Maneuver";
+                    ButtonText.text = AbortLabel;
                     Colors.Active.removeOnColorChangeListner(onButtonColorChange);
                     Colors.Danger.addOnColorChangeListner(onButtonColorChange);
                     onButtonColorChange(Colors.Danger);
                 }
                 else
                 {
-                    ButtonText.text = "Execute Node";
+                    ButtonText.text = ExecuteLabel;
                     Colors.Danger.removeOnColorChangeListner(onButtonColorChange);
                     Colors.Active.addOnColorChangeListner(onButtonColorChange);
                     onButtonColorChange(Colors.Active);

@@ -12,6 +12,15 @@ namespace ThrottleControlledAvionics
             unlockControls();
         }
 
+        protected override void LocalizeHud()
+        {
+            foreach(var tt in Controller.GetComponentsInChildren<AT_Utils.UI.TooltipTrigger>(true))
+            {
+                if(tt.text == "Click to dismiss")
+                    HudLocalization.SetTooltip(tt, "Info_DismissTip", tt.text);
+            }
+        }
+
         protected override void init_controller()
         {
             Controller.message.onLabelClicked.AddListener(clearGUIStatus);

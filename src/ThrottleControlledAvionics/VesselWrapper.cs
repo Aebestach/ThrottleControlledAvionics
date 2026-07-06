@@ -406,6 +406,7 @@ namespace ThrottleControlledAvionics
                 vessel.currentStage = StageManager.RecalculateVesselStaging(vessel);
             if(CFG.EnginesProfiles.Empty) CFG.EnginesProfiles.AddProfile(Engines.All);
             else if(CFG.Enabled && TCA.ProfileSyncAllowed) CFG.ActiveProfile.Update(Engines.All);
+            Geometry.InvalidateBounds();
         }
 
         bool stage_is_empty(int stage)

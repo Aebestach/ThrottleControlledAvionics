@@ -178,6 +178,7 @@ namespace ThrottleControlledAvionics
 
     public abstract class EngineConfigDB<K> : ConfigNodeObject
     {
+        [Persistent] public int schema = 1;
         public Dictionary<K, EngineConfig> DB = new Dictionary<K, EngineConfig>();
 
         protected abstract bool TryParseK(string k, out K K);

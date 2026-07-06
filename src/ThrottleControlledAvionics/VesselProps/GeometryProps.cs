@@ -29,13 +29,22 @@ namespace ThrottleControlledAvionics
         public float   AreaWithBrakes { get; private set; }
         public Vector3 BoundsSideAreas { get; private set; }
 
+        int cached_parts_count = -1;
+        int cached_stage = -1;
+        int cached_engines_count = -1;
+        double next_bounds_update = -1;
+        bool bounds_dirty = true;
+        Bounds cached_physical_bounds;
+        Transform cached_refT;
+        const double BoundsUpdatePeriod = 0.25;
+
+        public void InvalidateBounds() { bounds_dirty = true; }
+
         public float DistToBounds(Vector3 world_point)
         { return Mathf.Sqrt(B.SqrDistance(refT.InverseTransformPoint(world_point))); }
 
-        public override void Update()
+        void update_physical_props(Bounds b)
         {
-            //update physical bounds
-            var b = vessel.Bounds(refT);
             C = refT.TransformPoint(b.center);
             RelC = C-VSL.vessel.CoM;
             H = Mathf.Abs(Vector3.Dot(refT.TransformDirection(b.extents), VSL.Physics.Up)) -
@@ -46,6 +55,14 @@ namespace ThrottleControlledAvionics
                                           b.extents.x*b.extents.z, //up
                                           b.extents.x*b.extents.y);//forward
             Area = (BoundsSideAreas.x+BoundsSideAreas.y+BoundsSideAreas.z)*2;
+        }
+
+        void update_bounds_cache()
+        {
+            //update physical bounds
+            var b = vessel.Bounds(refT);
+            cached_physical_bounds = b;
+            cached_refT = refT;
             //update exhaust bounds
             foreach(var e in VSL.Engines.All)
             {
@@ -60,6 +77,30 @@ namespace ThrottleControlledAvionics
             }
             E = b.extents.magnitude;
             B = b;
+        }
+
+        public override void Update()
+        {
+            var parts_count = vessel.Parts.Count;
+            var stage = vessel.currentStage;
+            var engines_count = VSL.Engines.All.Count;
+            var now = Planetarium.GetUniversalTime();
+            if(bounds_dirty
+               || cached_refT != refT
+               || parts_count != cached_parts_count
+               || stage != cached_stage
+               || engines_count != cached_engines_count
+               || now >= next_bounds_update)
+            {
+                bounds_dirty = false;
+                cached_parts_count = parts_count;
+                cached_stage = stage;
+                cached_engines_count = engines_count;
+                next_bounds_update = now + BoundsUpdatePeriod;
+                update_bounds_cache();
+            }
+            // keep world-space properties frame-accurate while bounds recomputation is throttled
+            update_physical_props(cached_physical_bounds);
         }
 
         Timer brakes_measured_timer = new Timer();

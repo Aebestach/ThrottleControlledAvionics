@@ -141,7 +141,7 @@ namespace ThrottleControlledAvionics
                     for(int j = 0, tcount = r.rcs.thrusterTransforms.Count; j < tcount; j++)
                     {
                         var t = r.rcs.thrusterTransforms[j];
-                        if(t == null)
+                        if(t == null || !RCSWrapper.IsThrusterActive(t))
                             continue;
                         var specificTorque = refT.InverseTransformDirection(
                             Vector3.Cross(t.position - VSL.Physics.wCoM, 

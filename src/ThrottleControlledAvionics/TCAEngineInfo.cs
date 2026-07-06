@@ -77,7 +77,7 @@ namespace ThrottleControlledAvionics
             guiActive = true,
             guiActiveEditor = true,
             guiName = "#LOC_TCA_EngineGroup",
-            groupName = "TCAEngineInfo",
+            groupName = "TCA",
             groupDisplayName = "#LOC_TCA_TCA")]
         public int group;
 
@@ -136,7 +136,7 @@ namespace ThrottleControlledAvionics
         [KSPEvent(guiActive = true,
             guiActiveEditor = true,
             guiName = "#LOC_TCA_TCA_Role",
-            groupName = "TCAEngineInfo",
+            groupName = "TCA",
             groupDisplayName = "#LOC_TCA_TCA",
             active = true)]
         public void SwitchRole()
@@ -155,7 +155,7 @@ namespace ThrottleControlledAvionics
         [KSPEvent(guiActive = true,
             guiActiveEditor = true,
             guiName = "#LOC_TCA_TCA_ManeuverMode",
-            groupName = "TCAEngineInfo",
+            groupName = "TCA",
             groupDisplayName = "#LOC_TCA_TCA",
             active = false)]
         public void SwitchMode()

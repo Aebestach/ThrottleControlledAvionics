@@ -138,8 +138,17 @@ namespace TCA.UI
     {
         public FloatController Altitude;
         private bool altitudeAboveGround;
+        string tooltipAboveGround = "Desired altitude is above the ground";
+        string tooltipBelowGround = "Warning! Desired altitude is below the ground";
 
         public override FloatEvent onValueChanged => Altitude.onValueChanged;
+
+        public void SetAltitudeTooltipTexts(string aboveGround, string belowGround)
+        {
+            tooltipAboveGround = aboveGround;
+            tooltipBelowGround = belowGround;
+            SetAltitudeAboveGround(altitudeAboveGround);
+        }
 
         private void Awake()
         {
@@ -148,18 +157,16 @@ namespace TCA.UI
 
         public void SetAltitudeAboveGround(bool above)
         {
-            if(altitudeAboveGround == above)
-                return;
             if(above)
             {
-                Altitude.inputTooltip.text = "Desired altitude is above the ground";
+                Altitude.inputTooltip.text = tooltipAboveGround;
                 Colors.Danger.removeOnColorChangeListner(onInputColorChange);
                 Colors.Good.addOnColorChangeListner(onInputColorChange);
                 onInputColorChange(Colors.Good);
             }
             else
             {
-                Altitude.inputTooltip.text = "Warning! Desired altitude is below the ground";
+                Altitude.inputTooltip.text = tooltipBelowGround;
                 Colors.Good.removeOnColorChangeListner(onInputColorChange);
                 Colors.Danger.addOnColorChangeListner(onInputColorChange);
                 onInputColorChange(Colors.Danger);

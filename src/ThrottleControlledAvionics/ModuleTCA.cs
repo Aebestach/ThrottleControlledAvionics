@@ -42,14 +42,16 @@ namespace ThrottleControlledAvionics
         public List<TCAModule> AutopilotPipeline = new List<TCAModule>();
         public bool ProfileSyncAllowed { get; private set; } = true;
 
-        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Active")]
+        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Active",
+            groupName = "TCA", groupDisplayName = "#LOC_TCA_TCA")]
         public bool TCA_Active;
 
         [KSPField(isPersistant = true)]
         public string GID = "";
         static string new_GID() => Guid.NewGuid().ToString("N");
 
-        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Group")]
+        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Group",
+            groupName = "TCA", groupDisplayName = "#LOC_TCA_TCA")]
         public string GID_Display = "";
 
         [KSPField(isPersistant = true)] public bool GroupMaster;
@@ -548,7 +550,8 @@ namespace ThrottleControlledAvionics
             VSL.OnEnableTCA(CFG.Enabled);
         }
 
-        [KSPEvent(guiName = "#LOC_TCA_ActivateTCA", guiActive = true, active = true)]
+        [KSPEvent(guiName = "#LOC_TCA_ActivateTCA", guiActive = true, active = true,
+            groupName = "TCA", groupDisplayName = "#LOC_TCA_TCA")]
         public void ActivateTCA()
         {
             if(TCA_Active) return;
@@ -572,7 +575,8 @@ namespace ThrottleControlledAvionics
             ShowGroup();
         }
 
-        [KSPEvent(guiName = "#LOC_TCA_ShowTCAGroup", guiActive = true, active = true)]
+        [KSPEvent(guiName = "#LOC_TCA_ShowTCAGroup", guiActive = true, active = true,
+            groupName = "TCA", groupDisplayName = "#LOC_TCA_TCA")]
         public void ShowGroup()
         {
             var group = GetGroup();

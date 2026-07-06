@@ -90,6 +90,42 @@ namespace ThrottleControlledAvionics
             ALT.SetDesiredAltitude(altitude);
         }
 
+        protected override void LocalizeHud()
+        {
+            HudLocalization.SetToggleLabel(Controller.hoverButton, "Hover", "Hover");
+            HudLocalization.SetToggleLabel(Controller.followTerrainButton, "FollowTerrain", "Follow Terrain");
+            HudLocalization.SetToggleLabel(Controller.autoThrottleButton, "AutoThrottle", "AutoThrottle");
+            HudLocalization.SetToggleTooltip(Controller.hoverButton, "HoverTip", "Enable Altitude Control");
+            HudLocalization.SetToggleTooltip(Controller.followTerrainButton,
+                "FollowTerrainTip", "Enable follow terrain mode");
+            HudLocalization.SetToggleTooltip(Controller.autoThrottleButton,
+                "AutoThrottleTip", "Change altitude/vertical velocity using main throttle control");
+            Controller.ALT.SetAltitudeTooltipTexts(
+                Loc.T("VFlight_AltAboveGroundTip", "Desired altitude is above the ground"),
+                Loc.T("VFlight_AltBelowGroundTip", "Warning! Desired altitude is below the ground"));
+            foreach(var tt in Controller.GetComponentsInChildren<AT_Utils.UI.TooltipTrigger>(true))
+            {
+                switch(tt.text)
+                {
+                case "Desired vertical speed":
+                    HudLocalization.SetTooltip(tt, "VFlight_VSC_Tip", tt.text);
+                    break;
+                case "Altitude, Vertical speed, Horizontal speed.":
+                    HudLocalization.SetTooltip(tt, "VFlight_ReadoutTip", tt.text);
+                    break;
+                case "Change altitude or vertical speed with throttle controls":
+                    HudLocalization.SetTooltip(tt, "AutoThrottleTip", tt.text);
+                    break;
+                case "Maintain altitude":
+                    HudLocalization.SetTooltip(tt, "HoverTip", "Enable Altitude Control");
+                    break;
+                case "Keep altitude relative to the ground":
+                    HudLocalization.SetTooltip(tt, "FollowTerrainTip", "Enable follow terrain mode");
+                    break;
+                }
+            }
+        }
+
         protected override void OnLateUpdate()
         {
             base.OnLateUpdate();

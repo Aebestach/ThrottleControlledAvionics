@@ -89,7 +89,7 @@ namespace ThrottleControlledAvionics
             Utils.ButtonSwitch(Loc.T("AutoGear", "AutoGear"), ref CFG.AutoGear,
                                Loc.T("AutoGearTip", "Automatically deploy/retract landing gear when needed"), GUILayout.ExpandWidth(true));
             Utils.ButtonSwitch(Loc.T("AutoBrakes", "AutoBrakes"), ref CFG.AutoBrakes,
-                               Loc.T("AutoBrakesTip", "Automatically ebable/disable brakes when needed"), GUILayout.ExpandWidth(true));
+                               Loc.T("AutoBrakesTip", "Automatically enable/disable brakes when needed"), GUILayout.ExpandWidth(true));
             Utils.ButtonSwitch(Loc.T("AutoStage", "AutoStage"), ref CFG.AutoStage,
                                Loc.T("AutoStageTip", "Automatically activate next stage when previous falmeouted"), GUILayout.ExpandWidth(true));
             Utils.ButtonSwitch(Loc.T("AutoChute", "AutoChute"), ref CFG.AutoParachutes,
@@ -234,6 +234,12 @@ namespace ThrottleControlledAvionics
                 GUILayout.ExpandWidth(true)) 
                && string.IsNullOrEmpty(TCAGui.StatusMessage))
                 Status(InfoPanel.TEST_MSG);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GLB.HudUiScale = Utils.FloatSlider(Loc.T("HudUiScale", "HUD Scale"),
+                GLB.HudUiScale, 0.5f, 1.5f, "P0", 130,
+                Loc.T("HudUiScaleTip",
+                    "Scale in-flight HUD panels relative to the main TCA window"));
             GUILayout.EndHorizontal();
             Toggles();
             if(THR != null)
