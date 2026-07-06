@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <KspPluginsDir>$(MSBuildThisFileDirectory)..\00. KSP DEVELOP PLUGINS\</KspPluginsDir>
+  </PropertyGroup>
+  <Target Name="ExcludeKspAndUnityFromCopyLocal" AfterTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="$([System.String]::Copy('%(Filename)').StartsWith('UnityEngine'))" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="'%(Filename)' == 'Assembly-CSharp' Or '%(Filename)' == 'Assembly-CSharp-firstpass'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="'%(Filename)' == 'KSPAssets' Or '%(Filename)' == 'Mono.Cecil' Or '%(Filename)' == 'Mono.Security' Or '%(Filename)' == 'mscorlib'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)"
+        Condition="$([System.String]::Copy('%(Filename)').StartsWith('System')) And '%(Filename)' != 'System.Core'" />
+    </ItemGroup>
+  </Target>
+  <Target Name="RemovePluginPdbs" AfterTargets="Build">
+    <Delete Files="$(OutputPath)*.pdb" ContinueOnError="true" />
+  </Target>
+</Project>

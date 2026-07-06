@@ -1,4 +1,22 @@
-#Throttle Controlled Avionics
+# Throttle Controlled Avionics
+
+## Repository layout
+
+```
+ThrottleControlledAvionics/
+  GameData/ThrottleControlledAvionics/   # mod files installed into KSP
+  src/
+    ThrottleControlledAvionics/          # main plugin (ThrottleControlledAvionics.dll)
+    TCA.UI/                              # Unity UI library (TCA.UI.dll + prefab assets)
+  Images/                                # icon source art (SVG/XCF)
+  TechTree/                              # tech tree generation scripts
+  Tests/                                 # Python analysis / sandbox scripts
+```
+
+Build with `ThrottleControlledAvionics.sln`. Output goes to `GameData/ThrottleControlledAvionics/Plugins/`.
+TCA.UI builds into the [AT_Utils](https://github.com/allista/AT_Utils) Unity editor project (`AT_Utils/editor/Assets/Plugins/`).
+
+---
 
 *Originally created by
 [qfeys](http://forum.kerbalspaceprogram.com/members/45099-qfeys) and

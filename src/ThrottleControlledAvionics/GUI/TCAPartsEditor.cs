@@ -163,6 +163,8 @@ namespace ThrottleControlledAvionics
             GUI.depth = -1;
             if(doShow)
             {
+                Styles.Init();
+                UIScale.BeginGUI();
                 LockControls();
                 WindowPos = GUILayout.Window(GetInstanceID(),
                         WindowPos,
@@ -203,6 +205,7 @@ namespace ThrottleControlledAvionics
                         }
                     }
                 }
+                UIScale.EndGUI();
             }
             else
                 UnlockControls();

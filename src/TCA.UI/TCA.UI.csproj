@@ -9,13 +9,12 @@
         <AssemblyName>TCA.UI</AssemblyName>
         <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
         <LangVersion>latest</LangVersion>
+        <DeployOutputPath>$(MSBuildProjectDirectory)\..\..\..\AT_Utils\editor\Assets\Plugins\</DeployOutputPath>
+        <GameDataOutputPath>$(MSBuildProjectDirectory)\..\..\GameData\ThrottleControlledAvionics\Plugins\</GameDataOutputPath>
     </PropertyGroup>
-    <Import Project="$(MSBuildProjectDirectory)/../../CSharp.warnings.xml" />
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-        <DebugSymbols>true</DebugSymbols>
-        <DebugType>full</DebugType>
         <Optimize>false</Optimize>
-        <OutputPath>..\..\AT_Utils\Unity\Assets\Plugins</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <DefineConstants>DEBUG;</DefineConstants>
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>4</WarningLevel>
@@ -23,13 +22,13 @@
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
         <Optimize>true</Optimize>
-        <OutputPath>..\..\AT_Utils\Unity\Assets\Plugins</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>4</WarningLevel>
         <ConsolePause>false</ConsolePause>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Nightbuild|AnyCPU' ">
-        <OutputPath>../../AT_Utils/Unity/Assets/Plugins/</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <DefineConstants>NIGHTBUILD</DefineConstants>
         <Optimize>true</Optimize>
     </PropertyGroup>
@@ -42,7 +41,7 @@
         <Compile Include="ManeuverUI.cs" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\..\AT_Utils\Unity\AT_Utils.UI.csproj">
+        <ProjectReference Include="..\..\..\AT_Utils\src\AT_Utils.UI\AT_Utils.UI.csproj">
             <Project>{0B711E55-8312-144F-53AD-EDA5A8CEE04A}</Project>
             <Name>AT_Utils.UI</Name>
             <Private>False</Private>
@@ -50,21 +49,24 @@
     </ItemGroup>
     <ItemGroup>
         <Reference Include="System">
-            <HintPath>..\..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\System.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\System.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine">
-            <HintPath>..\..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.UI">
-            <HintPath>..\..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.UI.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.UI.dll</HintPath>
             <Private>False</Private>
         </Reference>
     </ItemGroup>
     <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
+    <Target Name="DeployTcaUiToGameData" AfterTargets="Build">
+        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDataOutputPath)" SkipUnchangedFiles="true" />
+    </Target>
 </Project>

@@ -9,12 +9,12 @@
         <AssemblyName>ThrottleControlledAvionics</AssemblyName>
         <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     </PropertyGroup>
-    <Import Project="$(MSBuildProjectDirectory)/../CSharp.warnings.xml" />
+    <PropertyGroup>
+        <DeployOutputPath>$(MSBuildProjectDirectory)\..\..\GameData\ThrottleControlledAvionics\Plugins\</DeployOutputPath>
+    </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-        <DebugSymbols>True</DebugSymbols>
-        <DebugType>full</DebugType>
         <Optimize>False</Optimize>
-        <OutputPath>GameData\ThrottleControlledAvionics\Plugins</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <DefineConstants>DEBUG;ENABLE_PROFILER;NIGHTBUILD</DefineConstants>
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>4</WarningLevel>
@@ -22,9 +22,8 @@
         <NoWarn>0649</NoWarn>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-        <DebugType>none</DebugType>
         <Optimize>True</Optimize>
-        <OutputPath>GameData\ThrottleControlledAvionics\Plugins</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <ErrorReport>prompt</ErrorReport>
         <WarningLevel>4</WarningLevel>
         <ConsolePause>False</ConsolePause>
@@ -32,70 +31,70 @@
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Nightbuild|AnyCPU' ">
         <Optimize>true</Optimize>
-        <OutputPath>GameData\ThrottleControlledAvionics\Plugins</OutputPath>
+        <OutputPath>$(DeployOutputPath)</OutputPath>
         <WarningLevel>4</WarningLevel>
         <DefineConstants>NIGHTBUILD</DefineConstants>
         <NoWarn>0649</NoWarn>
     </PropertyGroup>
     <ItemGroup>
         <Reference Include="Assembly-CSharp">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\Assembly-CSharp.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="System.Core">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\System.Core.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\System.Core.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="Mono.Cecil">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\Mono.Cecil.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\Mono.Cecil.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="Mono.Security">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\Mono.Security.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\Mono.Security.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="System.Xml">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\System.Xml.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\System.Xml.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="Assembly-CSharp-firstpass">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\Assembly-CSharp-firstpass.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.AnimationModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.AnimationModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.IMGUIModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.IMGUIModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.InputLegacyModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.InputLegacyModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.PhysicsModule.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="UnityEngine.UI">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\UnityEngine.UI.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.UI.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="KSPAssets">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\KSPAssets.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\KSPAssets.dll</HintPath>
             <Private>False</Private>
         </Reference>
         <Reference Include="System">
-            <HintPath>..\KSP-test\KSP_test_1.12.3\KSP_Data\Managed\System.dll</HintPath>
+            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\System.dll</HintPath>
             <Private>False</Private>
         </Reference>
     </ItemGroup>
@@ -219,36 +218,34 @@
         <Folder Include="Testing\" />
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\AT_Utils\AT_Utils.csproj">
+        <ProjectReference Include="..\..\..\AT_Utils\src\AT_Utils\AT_Utils.csproj">
             <Project>{64CC36A2-0610-4F74-9F31-3D4E22866B7E}</Project>
             <Name>AT_Utils</Name>
             <Private>False</Private>
         </ProjectReference>
-        <ProjectReference Include="..\AT_Utils\Unity\AT_Utils.UI.csproj">
+        <ProjectReference Include="..\..\..\AT_Utils\src\AT_Utils.UI\AT_Utils.UI.csproj">
             <Project>{0B711E55-8312-144F-53AD-EDA5A8CEE04A}</Project>
             <Name>AT_Utils.UI</Name>
             <Private>False</Private>
         </ProjectReference>
-        <ProjectReference Include="TCA.UI\TCA.UI.csproj">
+        <ProjectReference Include="..\TCA.UI\TCA.UI.csproj">
             <Project>{B16128EB-C7FC-404C-9C48-D996D489805B}</Project>
             <Name>TCA.UI</Name>
             <Private>True</Private>
         </ProjectReference>
     </ItemGroup>
     <ItemGroup>
-        <None Include=".gitignore" />
-        <None Include="ChangeLog.md" />
-        <None Include="export_git.sh" />
-        <None Include="extract_csv.sh" />
-        <None Include="make-release.sh" />
-        <None Include="README.md" />
+        <None Include="..\..\README.md" />
+        <None Include="..\..\ChangeLog.md" />
+        <None Include="..\..\export_git.sh" />
+        <None Include="..\..\extract_csv.sh" />
     </ItemGroup>
     <ItemGroup>
-      <Content Include="GameData\ThrottleControlledAvionics\Plugins\PluginData\ThrottleControlledAvionics\ThrottleControlledAvionics.glob" />
-      <Content Include="TechTree\data\DummyPartTemplate.cfg" />
-      <Content Include="TechTree\data\Parts.xlsx" />
-      <Content Include="TechTree\ModuleNetworks.py" />
-      <Content Include="TechTree\__init__.py" />
-      <Content Include="ThrottleControlledAvionics.netkan" />
+      <Content Include="..\..\GameData\ThrottleControlledAvionics\Plugins\PluginData\ThrottleControlledAvionics\ThrottleControlledAvionics.glob" />
+      <Content Include="..\..\TechTree\data\DummyPartTemplate.cfg" />
+      <Content Include="..\..\TechTree\data\Parts.xlsx" />
+      <Content Include="..\..\TechTree\ModuleNetworks.py" />
+      <Content Include="..\..\TechTree\__init__.py" />
+      <Content Include="..\..\ThrottleControlledAvionics.netkan" />
     </ItemGroup>
 </Project>
