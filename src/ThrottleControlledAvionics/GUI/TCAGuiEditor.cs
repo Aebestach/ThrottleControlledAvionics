@@ -439,28 +439,28 @@ namespace ThrottleControlledAvionics
         {
             //help button
             if(GUI.Button(new Rect(WindowPos.width - 23f, 2f, 20f, 18f),
-                          new GUIContent("?", "Help"))) TCAManual.ToggleInstance();
+                          Loc.Content("HelpButton", "?", "EditorHelpTip", "Help"))) TCAManual.ToggleInstance();
             GUILayout.BeginVertical();
             {
                 GUILayout.BeginHorizontal();
                 {
-                    if(GUILayout.Button(new GUIContent("Select Modules", "Select which TCA Modules should be installed on this ship"),
+                    if(GUILayout.Button(Loc.Content("SelectModules", "Select Modules", "SelectModulesTip", "Select which TCA Modules should be installed on this ship"),
                                             Styles.active_button, GUILayout.ExpandWidth(true)))
                         PartsEditor.Toggle();
                     if(Modules[typeof(MacroProcessor)])
                     {
 
                         if(TCAMacroEditor.Editing)
-                            GUILayout.Label("Edit Macros", Styles.inactive_button, GUILayout.ExpandWidth(true));
-                        else if(GUILayout.Button("Edit Macros", Styles.active_button, GUILayout.ExpandWidth(true)))
+                            GUILayout.Label(Loc.T("EditMacros", "Edit Macros"), Styles.inactive_button, GUILayout.ExpandWidth(true));
+                        else if(GUILayout.Button(Loc.T("EditMacros", "Edit Macros"), Styles.active_button, GUILayout.ExpandWidth(true)))
                             TCAMacroEditor.Edit(CFG);
                     }
-                    if(GUILayout.Button(new GUIContent("Save As Default", "Save current configuration as default for new ships in this facility (VAB/SPH)"),
+                    if(GUILayout.Button(Loc.Content("SaveAsDefault", "Save As Default", "SaveAsDefaultTip", "Save current configuration as default for new ships in this facility (VAB/SPH)"),
                                         Styles.active_button, GUILayout.ExpandWidth(true)))
                     {
                         var facility = EditorLogic.fetch.ship.shipFacility;
                         DialogFactory.Danger(
-                            $"Are you sure you want to save current ship configuration as default for {facility}?",
+                            Loc.F("SaveAsDefaultConfirm", "Are you sure you want to save current ship configuration as default for <<1>>?", facility),
                             () => TCAScenario.UpdateDefaultConfig(facility, CFG),
                             context: this
                         );
@@ -473,7 +473,7 @@ namespace ThrottleControlledAvionics
                     {
                         GUILayout.BeginHorizontal();
                         {
-                            if(Utils.ButtonSwitch("Enable TCA", ref CFG.Enabled, "", GUILayout.ExpandWidth(true)))
+                            if(Utils.ButtonSwitch(Loc.T("EnableTCA", "Enable TCA"), ref CFG.Enabled, "", GUILayout.ExpandWidth(true)))
                             {
                                 if(!CFG.Enabled)
                                     Engines.ForEach(e => e.forceThrustPercentage(100));
@@ -481,67 +481,68 @@ namespace ThrottleControlledAvionics
                             }
                             if(Modules[typeof(AltitudeControl)])
                             {
-                                if(Utils.ButtonSwitch("Hover", CFG.VF[VFlight.AltitudeControl],
-                                                      "Enable Altitude Control", GUILayout.ExpandWidth(false)))
+                                if(Utils.ButtonSwitch(Loc.T("Hover", "Hover"), CFG.VF[VFlight.AltitudeControl],
+                                                      Loc.T("HoverTip", "Enable Altitude Control"), GUILayout.ExpandWidth(false)))
                                     CFG.VF.Toggle(VFlight.AltitudeControl);
-                                Utils.ButtonSwitch("Follow Terrain", ref CFG.AltitudeAboveTerrain,
-                                                   "Enable follow terrain mode", GUILayout.ExpandWidth(false));
+                                Utils.ButtonSwitch(Loc.T("FollowTerrain", "Follow Terrain"), ref CFG.AltitudeAboveTerrain,
+                                                   Loc.T("FollowTerrainTip", "Enable follow terrain mode"), GUILayout.ExpandWidth(false));
                             }
                             if(Modules[typeof(VTOLControl)])
                             {
-                                if(Utils.ButtonSwitch("VTOL Mode", CFG.CTRL[ControlMode.VTOL],
-                                                      "Keyboard controls thrust direction instead of torque", GUILayout.ExpandWidth(false)))
+                                if(Utils.ButtonSwitch(Loc.T("VTOLMode", "VTOL Mode"), CFG.CTRL[ControlMode.VTOL],
+                                                      Loc.T("VTOLModeTip", "Keyboard controls thrust direction instead of torque"), GUILayout.ExpandWidth(false)))
                                     CFG.CTRL.XToggle(ControlMode.VTOL);
                             }
                             if(Modules[typeof(VTOLAssist)])
-                                Utils.ButtonSwitch("VTOL Assist", ref CFG.VTOLAssistON,
-                                                   "Automatic assistance with vertical takeof or landing", GUILayout.ExpandWidth(false));
+                                Utils.ButtonSwitch(Loc.T("VTOLAssist", "VTOL Assist"), ref CFG.VTOLAssistON,
+                                                   Loc.T("VTOLAssistTip", "Automatic assistance with vertical takeof or landing"), GUILayout.ExpandWidth(false));
                             if(Modules[typeof(FlightStabilizer)])
-                                Utils.ButtonSwitch("Flight Stabilizer", ref CFG.StabilizeFlight,
-                                                   "Automatic flight stabilization when vessel is out of control", GUILayout.ExpandWidth(false));
+                                Utils.ButtonSwitch(Loc.T("FlightStabilizer", "Flight Stabilizer"), ref CFG.StabilizeFlight,
+                                                   Loc.T("FlightStabilizerTip", "Automatic flight stabilization when vessel is out of control"), GUILayout.ExpandWidth(false));
                             if(Modules[typeof(CollisionPreventionSystem)])
-                                Utils.ButtonSwitch("CPS", ref CFG.UseCPS,
-                                                   "Enable Collistion Prevention System", GUILayout.ExpandWidth(false));
+                                Utils.ButtonSwitch(Loc.T("CPS", "CPS"), ref CFG.UseCPS,
+                                                   Loc.T("CPSTip", "Enable Collistion Prevention System"), GUILayout.ExpandWidth(false));
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.BeginHorizontal();
                         {
-                            Utils.ButtonSwitch("AutoThrottle", ref CFG.BlockThrottle,
-                                               "Change altitude/vertical velocity using main throttle control", GUILayout.ExpandWidth(true));
-                            if(Utils.ButtonSwitch("SmartEngines", ref CFG.UseSmartEngines,
-                                                  "Group engines by thrust direction and automatically use appropriate group for a meneuver", GUILayout.ExpandWidth(true)))
+                            Utils.ButtonSwitch(Loc.T("AutoThrottle", "AutoThrottle"), ref CFG.BlockThrottle,
+                                               Loc.T("AutoThrottleTip", "Change altitude/vertical velocity using main throttle control"), GUILayout.ExpandWidth(true));
+                            if(Utils.ButtonSwitch(Loc.T("SmartEngines", "SmartEngines"), ref CFG.UseSmartEngines,
+                                                  Loc.T("SmartEnginesTip", "Group engines by thrust direction and automatically use appropriate group for a meneuver"), GUILayout.ExpandWidth(true)))
                             { if(CFG.UseSmartEngines) CFG.SmartEngines.OnIfNot(SmartEnginesMode.Best); }
-                            Utils.ButtonSwitch("AutoGear", ref CFG.AutoGear,
-                                               "Automatically deploy/retract landing gear when needed", GUILayout.ExpandWidth(true));
-                            Utils.ButtonSwitch("AutoBrakes", ref CFG.AutoBrakes,
-                                               "Automatically ebable/disable brakes when needed", GUILayout.ExpandWidth(true));
-                            Utils.ButtonSwitch("AutoStage", ref CFG.AutoStage,
-                                               "Automatically activate next stage when previous falmeouted", GUILayout.ExpandWidth(true));
-                            Utils.ButtonSwitch("AutoChute", ref CFG.AutoParachutes,
-                                               "Automatically activate parachutes when needed", GUILayout.ExpandWidth(true));
+                            Utils.ButtonSwitch(Loc.T("AutoGear", "AutoGear"), ref CFG.AutoGear,
+                                               Loc.T("AutoGearTip", "Automatically deploy/retract landing gear when needed"), GUILayout.ExpandWidth(true));
+                            Utils.ButtonSwitch(Loc.T("AutoBrakes", "AutoBrakes"), ref CFG.AutoBrakes,
+                                               Loc.T("AutoBrakesTip", "Automatically ebable/disable brakes when needed"), GUILayout.ExpandWidth(true));
+                            Utils.ButtonSwitch(Loc.T("AutoStage", "AutoStage"), ref CFG.AutoStage,
+                                               Loc.T("AutoStageTip", "Automatically activate next stage when previous falmeouted"), GUILayout.ExpandWidth(true));
+                            Utils.ButtonSwitch(Loc.T("AutoChute", "AutoChute"), ref CFG.AutoParachutes,
+                                               Loc.T("AutoChuteTip", "Automatically activate parachutes when needed"), GUILayout.ExpandWidth(true));
                         }
                         GUILayout.EndHorizontal();
                         GUILayout.BeginHorizontal();
                         if(Modules[typeof(HorizontalSpeedControl)])
                         {
-                            Utils.ButtonSwitch("Hor. Thrust",
+                            Utils.ButtonSwitch(Loc.T("HorThrust", "Hor. Thrust"),
                                 ref CFG.UseHorizontalThrust,
-                                "Use maneuver engines to provide thrust for horizontal flight",
+                                Loc.T("HorThrustTip", "Use maneuver engines to provide thrust for horizontal flight"),
                                 GUILayout.ExpandWidth(true));
-                            if(MinHorizontalAccel.Draw("kN/t",
+                            if(MinHorizontalAccel.Draw(Loc.T("KNPerT", "kN/t"),
                                 field_width: 50,
                                 suffix_tooltip:
-                                "Maneuver engines will be used as horizontal thrusters only if they produce more thrust than this.")
+                                Loc.T("MinHorizontalAccelTip", "Maneuver engines will be used as horizontal thrusters only if they produce more thrust than this.")
+                            )
                             )
                                 CFG.MinHorizontalAccel = MinHorizontalAccel;
                             if(Modules[typeof(TranslationControl)])
-                                Utils.ButtonSwitch("RCS Translation",
+                                Utils.ButtonSwitch(Loc.T("RCSTranslation", "RCS Translation"),
                                     ref CFG.CorrectWithTranslation,
-                                    "Use RCS to correct horizontal velocity",
+                                    Loc.T("RCSTranslationTip", "Use RCS to correct horizontal velocity"),
                                     GUILayout.ExpandWidth(true));
                         }
-                        Utils.ButtonSwitch("RCS Rotation", ref CFG.RotateWithRCS,
-                            "Use RCS for attitude control", GUILayout.ExpandWidth(true));
+                        Utils.ButtonSwitch(Loc.T("RCSRotation", "RCS Rotation"), ref CFG.RotateWithRCS,
+                            Loc.T("RCSRotationTip", "Use RCS for attitude control"), GUILayout.ExpandWidth(true));
                         GUILayout.EndHorizontal();
                     }
                     GUILayout.EndVertical();
@@ -549,8 +550,8 @@ namespace ThrottleControlledAvionics
                 GUILayout.EndHorizontal();
                 if(Engines.Count > 0)
                 {
-                    if(GUILayout.Button(new GUIContent("Autoconfigure Active Profile",
-                                                       "This will overwrite any existing groups and roles"),
+                    if(GUILayout.Button(Loc.Content("AutoconfigureActiveProfile", "Autoconfigure Active Profile",
+                                                       "AutoconfigureActiveProfileTip", "This will overwrite any existing groups and roles"),
                                         Styles.danger_button, GUILayout.ExpandWidth(true)))
                         autoconfigure_profile = true;
                     CFG.EnginesProfiles.Draw(height);
@@ -562,16 +563,16 @@ namespace ThrottleControlledAvionics
                 }
                 GUILayout.BeginHorizontal(Styles.white);
                 {
-                    GUILayout.Label("Ship Info:");
+                    GUILayout.Label(Loc.T("ShipInfo", "Ship Info:"));
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label("Mass:", Styles.boxed_label);
-                    if(Utils.ButtonSwitch(Utils.formatMass(WetMass), use_wet_mass, "Balance engines using Wet Mass"))
+                    GUILayout.Label(Loc.T("Mass", "Mass:"), Styles.boxed_label);
+                    if(Utils.ButtonSwitch(Utils.formatMass(WetMass), use_wet_mass, Loc.T("WetMassTip", "Balance engines using Wet Mass")))
                     {
                         use_wet_mass = true;
                         update_stats = true;
                     }
                     GUILayout.Label("►");
-                    if(Utils.ButtonSwitch(Utils.formatMass(DryMass), !use_wet_mass, "Balance engines using Dry Mass"))
+                    if(Utils.ButtonSwitch(Utils.formatMass(DryMass), !use_wet_mass, Loc.T("DryMassTip", "Balance engines using Dry Mass")))
                     {
                         use_wet_mass = false;
                         update_stats = true;
@@ -580,17 +581,17 @@ namespace ThrottleControlledAvionics
                     {
                         if(ActiveEngines.Count > 0)
                         {
-                            GUILayout.Label(new GUIContent(string.Format("TMR: {0:F2} ► {1:F2}", MinTWR, MaxTWR),
-                                                           "Thrust ot Mass Ratio"),
+                            GUILayout.Label(new GUIContent(Loc.F("TMR", "TMR: <<1>> ► <<2>>", MinTWR.ToString("F2"), MaxTWR.ToString("F2")),
+                                                           Loc.T("TMRTip", "Thrust ot Mass Ratio")),
                                             Styles.fracStyle(Utils.Clamp(MinTWR - 1, 0, 1)));
-                            GUILayout.Label(new GUIContent(string.Format("Balanced: {0:P1}", MinLimit),
-                                                           "The efficacy of the least efficient of balanced engines"),
+                            GUILayout.Label(new GUIContent(Loc.F("Balanced", "Balanced: <<1>>", MinLimit.ToString("P1")),
+                                                           Loc.T("BalancedTip", "The efficacy of the least efficient of balanced engines")),
                                             Styles.fracStyle(MinLimit));
-                            Utils.ButtonSwitch("HL", ref show_imbalance, "Highlight engines with low efficacy deu to balancing");
+                            Utils.ButtonSwitch(Loc.T("HL", "HL"), ref show_imbalance, Loc.T("HLTip", "Highlight engines with low efficacy deu to balancing"));
                         }
-                        else GUILayout.Label("No active engines", Styles.boxed_label);
+                        else GUILayout.Label(Loc.T("NoActiveEngines", "No active engines"), Styles.boxed_label);
                     }
-                    else GUILayout.Label("TCA is disabled", Styles.boxed_label);
+                    else GUILayout.Label(Loc.T("TCADisabledShort", "TCA is disabled"), Styles.boxed_label);
                 }
                 GUILayout.EndHorizontal();
             }
@@ -652,8 +653,8 @@ namespace ThrottleControlledAvionics
                                  GUILayout.Height(height)).clampToScreen();
             if(show_imbalance && ActiveEngines.Count > 0)
             {
-                Markers.DrawWorldMarker(WetCoM, Colors.Active, "Center of Mass", CoM_Icon);
-                Markers.DrawWorldMarker(DryCoM, Colors.Danger, "Center of Dry Mass", CoM_Icon);
+                Markers.DrawWorldMarker(WetCoM, Colors.Active, Loc.T("CenterOfMass", "Center of Mass"), CoM_Icon);
+                Markers.DrawWorldMarker(DryCoM, Colors.Danger, Loc.T("CenterOfDryMass", "Center of Dry Mass"), CoM_Icon);
             }
         }
 

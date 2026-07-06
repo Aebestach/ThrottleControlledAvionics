@@ -86,7 +86,7 @@ namespace ThrottleControlledAvionics
                 action(tca);
                 executed = true;
             }
-            if(executed) Message("Squad Action Executed");
+            if(executed) Message(Loc.T("Squad_ActionExecuted", "Squad Action Executed"));
         }
 
         public void Apply(Action<ModuleTCA> action)
@@ -122,10 +122,10 @@ namespace ThrottleControlledAvionics
 
         public override void Draw()
         {
-            Utils.ButtonSwitch("Squadron Mode", ref SquadMode, 
-                               "Control autopilot on all squadron vessels", 
+            Utils.ButtonSwitch(Loc.T("Squad_SquadronMode", "Squadron Mode"), ref SquadMode, 
+                               Loc.T("Squad_SquadronMode_Tooltip", "Control autopilot on all squadron vessels"), 
                                GUILayout.ExpandWidth(false));
-            if(SquadMode) CFG.Squad = Utils.IntSelector(CFG.Squad, 1, tooltip: "Squad ID");
+            if(SquadMode) CFG.Squad = Utils.IntSelector(CFG.Squad, 1, tooltip: Loc.T("Squad_SquadID", "Squad ID"));
         }
     }
 }

@@ -132,7 +132,7 @@ namespace ThrottleControlledAvionics
         protected override void DrawThis()
         {
             GUILayout.Label(Label, Styles.white, GUILayout.ExpandWidth(false));
-            if(GUILayout.Button(On? "On" : "Off", 
+            if(GUILayout.Button(On? Loc.T("On", "On") : Loc.T("Off", "Off"), 
                                 On? Styles.enabled_button : Styles.active_button, 
                                 GUILayout.ExpandWidth(false)))
                 On = !On;

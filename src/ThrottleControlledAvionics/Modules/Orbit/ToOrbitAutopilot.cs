@@ -179,13 +179,13 @@ namespace ThrottleControlledAvionics
                 else circularize(ApAUT);
                 break;
             case Stage.ChangeApA:
-                TmpStatus("Achieving target apoapsis...");
+                TmpStatus(Loc.T("ToOrbit_AchievingApoapsis", "Achieving target apoapsis..."));
                 if(CFG.AP1[Autopilot1.Maneuver]) break;
                 circularize(VSL.Physics.UT + VesselOrbit.timeToAp);
                 stage = Stage.Circularize;
                 break;
             case Stage.Circularize:
-                TmpStatus("Circularization...");
+                TmpStatus(Loc.T("ToOrbit_Circularization", "Circularization..."));
                 if(CFG.AP1[Autopilot1.Maneuver]) break;
                 Disable();
                 ClearStatus();
@@ -266,12 +266,12 @@ namespace ThrottleControlledAvionics
 #endif
             if(stage == Stage.None)
             {
-                if(Utils.ButtonSwitch("ToOrbit", ShowOptions,
-                                         "Achieve a circular orbit with desired radius and inclination",
+                if(Utils.ButtonSwitch(Loc.T("ToOrbit_Button", "ToOrbit"), ShowOptions,
+                                         Loc.T("ToOrbit_Button_Tooltip", "Achieve a circular orbit with desired radius and inclination"),
                                       GUILayout.ExpandWidth(true)))
                     toggleOptions();
             }
-            else if(GUILayout.Button(new GUIContent("ToOrbit", "Change target orbit or abort"),
+            else if(GUILayout.Button(Loc.Content("ToOrbit_Button", "ToOrbit", "ToOrbit_Abort_Tooltip", "Change target orbit or abort"),
                                      Styles.danger_button, GUILayout.ExpandWidth(true)))
                 toggleOptions();
         }
@@ -284,14 +284,14 @@ namespace ThrottleControlledAvionics
             if(stage == Stage.GravityTurn)
                 ToOrbit.DrawInfo(TargetOrbit.TargetInclination);
             GUILayout.BeginHorizontal();
-            ShowOptions = !GUILayout.Button("Cancel", Styles.active_button, GUILayout.ExpandWidth(true));
+            ShowOptions = !GUILayout.Button(Loc.T("Cancel", "Cancel"), Styles.active_button, GUILayout.ExpandWidth(true));
             if(stage != Stage.None &&
-               GUILayout.Button("Abort", Styles.danger_button, GUILayout.ExpandWidth(true)))
+               GUILayout.Button(Loc.T("Abort", "Abort"), Styles.danger_button, GUILayout.ExpandWidth(true)))
             {
                 ShowOptions = false;
                 CFG.AP2.XOff();
             }
-            if(GUILayout.Button(stage == Stage.None ? "Launch" : "Change",
+            if(GUILayout.Button(stage == Stage.None ? Loc.T("Launch", "Launch") : Loc.T("Change", "Change"),
                                 Styles.confirm_button, GUILayout.ExpandWidth(true)))
             {
                 TargetOrbit.UpdateValues();
@@ -323,10 +323,10 @@ namespace ThrottleControlledAvionics
             {
                 GUILayout.BeginVertical();
                 {
-                    GUILayout.Label(new GUIContent("Apoapsis:",
-                                                   "Apoapsis of the target circular orbit"), 
+                    GUILayout.Label(Loc.Content("ToOrbit_Apoapsis", "Apoapsis:", "ToOrbit_Apoapsis_Tooltip", "Apoapsis of the target circular orbit"), 
                                     GUILayout.ExpandWidth(true));
-                    GUILayout.Label(new GUIContent("Inclination:",
+                    GUILayout.Label(Loc.Content("ToOrbit_Inclination", "Inclination:",
+                                                   "ToOrbit_Inclination_Tooltip",
                                                    "Inclination of the prograde varian of a target orbit. " +
                                                    "In case of retrograde orbits the actual target inclination is " +
                                                    "180-prograde_inclination."), 
@@ -339,11 +339,11 @@ namespace ThrottleControlledAvionics
                     GUILayout.BeginHorizontal();
                     {
                         GUILayout.FlexibleSpace();
-                        if(GUILayout.Button(new GUIContent(DescendingNode ? "DN" : "AN", "Launch from Ascending or Descending Node?"),
+                        if(GUILayout.Button(Loc.Content(DescendingNode ? "ToOrbit_DN" : "ToOrbit_AN", DescendingNode ? "DN" : "AN", "ToOrbit_Node_Tooltip", "Launch from Ascending or Descending Node?"),
                                             DescendingNode ? Styles.danger_button : Styles.enabled_button,
                                             GUILayout.ExpandWidth(false)))
                             DescendingNode = !DescendingNode;
-                        if(GUILayout.Button(new GUIContent(RetrogradeOrbit ? "RG" : "PG", "Prograde or retrograde orbit?"),
+                        if(GUILayout.Button(Loc.Content(RetrogradeOrbit ? "ToOrbit_RG" : "ToOrbit_PG", RetrogradeOrbit ? "RG" : "PG", "ToOrbit_OrbitDir_Tooltip", "Prograde or retrograde orbit?"),
                                             RetrogradeOrbit ? Styles.danger_button : Styles.enabled_button,
                                             GUILayout.ExpandWidth(false)))
                             RetrogradeOrbit = !RetrogradeOrbit;

@@ -32,14 +32,17 @@ namespace ThrottleControlledAvionics
 
         public MacroNode()
         { 
-            Name = Utils.ParseCamelCase(GetType().Name.Replace(typeof(MacroNode).Name, "")); 
+            var shortName = GetType().Name.Replace(typeof(MacroNode).Name, "");
+            Name = Loc.T("Macro_" + shortName, Utils.ParseCamelCase(shortName)); 
             Label = new GUIContent(Name);
         }
 
         public MacroNode(ComponentInfo info) : this()
         {
-            if(!string.IsNullOrEmpty(info.Name)) Name = info.Name;
-            Label = new GUIContent(Name, info.Description);
+            if(!string.IsNullOrEmpty(info.Name))
+                Name = Loc.T("Macro_" + info.Name.Replace(" ", ""), info.Name);
+            if(!string.IsNullOrEmpty(info.Description))
+                Label = new GUIContent(Name, Loc.T("Macro_" + GetType().Name.Replace(typeof(MacroNode).Name, "") + "_Desc", info.Description));
         }
 
         public override void Load(ConfigNode node)
@@ -65,7 +68,7 @@ namespace ThrottleControlledAvionics
         protected virtual void DrawDeleteButton()
         {
             if(Parent != null && Parent.Edit &&
-               GUILayout.Button(new GUIContent("X", "Delete"), 
+               GUILayout.Button(Loc.Content("Delete", "X", "Delete_Tooltip", "Delete"), 
                                 Styles.close_button, 
                                 GUILayout.Width(20)))
                 Parent.OnChildRemove(this);
@@ -135,8 +138,8 @@ namespace ThrottleControlledAvionics
         public virtual void SetCFG(VesselConfig cfg) 
         { EditedCFG = cfg; }
 
-        protected void Message(string msg)
-        { Utils.Message("{0}: {1}", Name, msg); }
+        protected void Message(string key, string msg)
+        { Utils.Message("{0}: {1}", Name, Loc.T(key, msg)); }
 
         #if DEBUG
         protected void Log(VesselWrapper VSL, string msg, params object[] args)

@@ -78,7 +78,7 @@ namespace ThrottleControlledAvionics
             {
                 if(VSL.Engines.NumActive > 0 && VSL.OnPlanet && VSL.OnPlanetParams.MaxTWR <= 1)
                 {
-                    Status(Colors.Danger, "TWR < 1, impossible to achive orbit");
+                    Status(Colors.Danger, Loc.T("Orbit_TWRTooLow", "TWR < 1, impossible to achive orbit"));
                     Disable();
                     return false;
                 }
@@ -690,7 +690,7 @@ namespace ThrottleControlledAvionics
             if(!TCAScenario.HavePatchedConics)
             {
                 Status(Colors.Warning, 
-                       "WARNING: maneuver nodes are not yet available. Upgrade the Tracking Station.");
+                       Loc.T("Orbit_NoManeuverNodes", "WARNING: maneuver nodes are not yet available. Upgrade the Tracking Station."));
                 Disable();
                 return false;
             }
@@ -731,7 +731,7 @@ namespace ThrottleControlledAvionics
             T t = null;
 
             var ioptimizer = optimizer.GetEnumerator();
-            Status("{0}\nPush to continue", optimizer.Status);
+            Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
             while(true)
             {
                 current_landing_trajectory = t as LandingTrajectory;
@@ -744,7 +744,7 @@ namespace ThrottleControlledAvionics
                 I++;
                 if(t == null) 
                 {
-                    Status("{0}\nPush to continue", optimizer.Status);
+                    Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
                     yield return t;
                     continue;
                 }
@@ -753,7 +753,7 @@ namespace ThrottleControlledAvionics
                 if(setp_by_step_computation) 
                 {
                     Log("Trajectory #{}\n{}", I, t);
-                    Status("{0}\nPush to continue", optimizer.Status);
+                    Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
                 }
                 else Status(optimizer.Status);
                 yield return t;

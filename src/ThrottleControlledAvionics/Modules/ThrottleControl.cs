@@ -102,10 +102,10 @@ namespace ThrottleControlledAvionics
 
         public override void Draw()
         {
-            if(Utils.ButtonSwitch("AutoThrottle", CFG.BlockThrottle, 
+            if(Utils.ButtonSwitch(Loc.T("Throttle_AutoThrottle", "AutoThrottle"), CFG.BlockThrottle, 
                                   CFG.VF[VFlight.AltitudeControl]?
-                                  "Change altitude with throttle controls" :
-                                  "Set vertical speed with throttle controls",
+                                  Loc.T("Throttle_AltitudeTooltip", "Change altitude with throttle controls") :
+                                  Loc.T("Throttle_VSpeedTooltip", "Set vertical speed with throttle controls"),
                                   GUILayout.ExpandWidth(true)))
                 BlockThrottle(!CFG.BlockThrottle);
         }

@@ -42,14 +42,14 @@ namespace ThrottleControlledAvionics
         public List<TCAModule> AutopilotPipeline = new List<TCAModule>();
         public bool ProfileSyncAllowed { get; private set; } = true;
 
-        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "TCA Active")]
+        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Active")]
         public bool TCA_Active;
 
         [KSPField(isPersistant = true)]
         public string GID = "";
         static string new_GID() => Guid.NewGuid().ToString("N");
 
-        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "TCA Group")]
+        [KSPField(guiActive = true, guiActiveEditor = true, guiName = "#LOC_TCA_TCA_Group")]
         public string GID_Display = "";
 
         [KSPField(isPersistant = true)] public bool GroupMaster;
@@ -149,12 +149,12 @@ namespace ThrottleControlledAvionics
                                  this.GetID(), GID, GroupMaster, TCA_Active);
         }
 
-        public override string GetInfo() => "Software can be installed";
+        public override string GetInfo() => Loc.T("PartInfo_SoftwareInstallable", "Software can be installed");
 
         internal const string TCA_NAME = "TCA";
-        public string GetModuleTitle() => TCA_NAME;
+        public string GetModuleTitle() => Loc.T("TCA_Label", TCA_NAME);
 
-        public string GetPrimaryField() => "<b>TCA:</b> " + TCAScenario.ModuleStatusString();
+        public string GetPrimaryField() => "<b>" + Loc.T("TCA_Label", TCA_NAME) + ":</b> " + TCAScenario.ModuleStatusString();
 
         public Callback<Rect> GetDrawModulePanelCallback() { return null; }
 
@@ -294,7 +294,7 @@ namespace ThrottleControlledAvionics
         }
 
         [UsedImplicitly]
-        [KSPAction("Update TCA Profile")]
+        [KSPAction("#LOC_TCA_UpdateTCAProfile")]
         private void onActionUpdate(KSPActionParam param) { StartCoroutine(activeProfileUpdate()); }
 
         /// <summary>
@@ -538,7 +538,7 @@ namespace ThrottleControlledAvionics
         #endregion
 
         #region Controls
-        [KSPAction("Toggle TCA")]
+        [KSPAction("#LOC_TCA_ToggleTCA")]
         public void ToggleTCA(KSPActionParam param = null)
         {
             CFG.Enabled = !CFG.Enabled;
@@ -548,7 +548,7 @@ namespace ThrottleControlledAvionics
             VSL.OnEnableTCA(CFG.Enabled);
         }
 
-        [KSPEvent(guiName = "Activate TCA", guiActive = true, active = true)]
+        [KSPEvent(guiName = "#LOC_TCA_ActivateTCA", guiActive = true, active = true)]
         public void ActivateTCA()
         {
             if(TCA_Active) return;
@@ -572,7 +572,7 @@ namespace ThrottleControlledAvionics
             ShowGroup();
         }
 
-        [KSPEvent(guiName = "Show TCA Group", guiActive = true, active = true)]
+        [KSPEvent(guiName = "#LOC_TCA_ShowTCAGroup", guiActive = true, active = true)]
         public void ShowGroup()
         {
             var group = GetGroup();

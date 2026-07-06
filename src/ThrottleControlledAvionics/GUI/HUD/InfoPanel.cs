@@ -4,7 +4,7 @@ namespace ThrottleControlledAvionics
 {
     public class InfoPanel : ControlPanel<InfoUI>
     {
-        public const string TEST_MSG = "Drag this to set the location of TCA status panel";
+        public static string TEST_MSG => Loc.T("InfoPanelTestMsg", "Drag this to set the location of TCA status panel");
 
         private void clearGUIStatus()
         {

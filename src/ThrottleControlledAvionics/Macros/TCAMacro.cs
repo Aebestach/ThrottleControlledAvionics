@@ -51,7 +51,7 @@ namespace ThrottleControlledAvionics
             {
                 GUILayout.BeginHorizontal();
                 Name = GUILayout.TextField(Name, GUILayout.ExpandWidth(true), GUILayout.MinWidth(50));
-                if(Parent != null) Edit &= !GUILayout.Button("Done", Styles.confirm_button, GUILayout.Width (40));
+                if(Parent != null) Edit &= !GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.Width (40));
                 GUILayout.EndHorizontal();
                 Block.Draw();
             }
@@ -91,7 +91,7 @@ namespace ThrottleControlledAvionics
             {
                 var m = DB.List[i];
                 GUILayout.BeginHorizontal();
-                if(GUILayout.Button("X", Styles.danger_button, GUILayout.Width(20)))
+                if(GUILayout.Button(Loc.T("Delete", "X"), Styles.danger_button, GUILayout.Width(20)))
                     del.Add(m);
                 if(GUILayout.Button(m.Name, Styles.normal_button, GUILayout.ExpandWidth(true)))
                 {

@@ -51,10 +51,8 @@ namespace ThrottleControlledAvionics
             get { return Autopilot2.Deorbit; }
         }
 
-        protected override string program_name
-        {
-            get { return "Landing Autopilot"; }
-        }
+        protected override string program_name =>
+            Loc.T("Deorbit_ProgramName", "Landing Autopilot");
 
         abstract class DeorbitOptimizerBase : LandingSiteOptimizerBase
         {
@@ -514,7 +512,7 @@ namespace ThrottleControlledAvionics
             }
         }
 
-        static readonly GUIContent button_content = new GUIContent("Land", "Compute and perform a deorbit maneuver, then land near the target.");
+        static GUIContent button_content => Loc.Content("Deorbit_Land", "Land", "Deorbit_Land_Tooltip", "Compute and perform a deorbit maneuver, then land near the target.");
         public override void Draw()
         {
             if(ControlsActive)

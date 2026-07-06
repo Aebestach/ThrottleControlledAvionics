@@ -35,8 +35,10 @@ namespace ThrottleControlledAvionics
             Texture2D Image = null;
             if(!string.IsNullOrEmpty(Icon))
                 Image = TextureCache.GetTexture(Icon);
-            return Image != null? new GUIContent(Image, Title) :
-                new GUIContent(Title);
+            var title = Title.StartsWith("#")
+                ? Loc.TTag(Title, Loc.T(Title.Substring(Loc.TagPrefix.Length), Title))
+                : Loc.T(Title, Title);
+            return Image != null ? new GUIContent(Image, title) : new GUIContent(title);
         }
 
         public override string ToString()

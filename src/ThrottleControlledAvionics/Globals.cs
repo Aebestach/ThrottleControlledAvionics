@@ -10,6 +10,7 @@ using System.IO;
 using System.Reflection;
 using System.Linq;
 using System.Collections.Generic;
+using KSP.Localization;
 using AT_Utils;
 
 namespace ThrottleControlledAvionics
@@ -18,6 +19,7 @@ namespace ThrottleControlledAvionics
     {
         public const string TCA_PART = "ThrottleControlledAvionics";
         public const string INSTRUCTIONS = "INSTRUCTIONS.md";
+        public const string INSTRUCTIONS_ZH = "INSTRUCTIONS.zh-cn.md";
 
         public const string RADIATION_ICON = "ThrottleControlledAvionics/Icons/waypoint";
         public const string CIRCLE_ICON = "ThrottleControlledAvionics/Icons/path-node";
@@ -103,16 +105,38 @@ namespace ThrottleControlledAvionics
 
         public override void Init()
         { 
-            try
-            {
-                using(var file = new StreamReader(PluginFolder(INSTRUCTIONS)))
-                {
-                    Manual = MD2Unity.Parse(file);
-                    if(Manual.NoTitle) Manual.Title = "TCA Reference Manual";
-                }
-            }
-            catch(Exception ex) { Utils.Log("Error loading {} file:\n{}", PluginFolder(INSTRUCTIONS), ex); }
+            LoadManual();
             InputDeadZone *= InputDeadZone; //it is compared with the sqrMagnitude
+        }
+
+        static string InstructionsFile()
+        {
+            var lang = Localizer.CurrentLanguage?.ToLowerInvariant() ?? "en-us";
+            if(lang.StartsWith("zh"))
+                return INSTRUCTIONS_ZH;
+            return INSTRUCTIONS;
+        }
+
+        public void LoadManual()
+        {
+            Manual = null;
+            var candidates = new[] { InstructionsFile(), INSTRUCTIONS };
+            foreach(var file in candidates.Distinct())
+            {
+                var path = PluginFolder(file);
+                if(!File.Exists(path)) continue;
+                try
+                {
+                    using(var reader = new StreamReader(path))
+                    {
+                        Manual = MD2Unity.Parse(reader);
+                        if(Manual.NoTitle)
+                            Manual.Title = Loc.T("ManualWindowTitle", "TCA Manual");
+                    }
+                    return;
+                }
+                catch(Exception ex) { Utils.Log("Error loading {} file:\n{}", path, ex); }
+            }
         }
     }
 }

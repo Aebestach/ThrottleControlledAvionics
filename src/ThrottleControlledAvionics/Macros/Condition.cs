@@ -86,14 +86,14 @@ namespace ThrottleControlledAvionics
             scroll = GUILayout.BeginScrollView(scroll, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(false));
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            if(Prev != null && GUILayout.Button(or? "OR" : "AND", Styles.white, GUILayout.Width(40))) or = !or;
-            if(negatable && GUILayout.Button(not? "NOT" : "", Styles.danger, GUILayout.Width(40))) not = !not;
+            if(Prev != null && GUILayout.Button(or? Loc.T("Macro_OR", "OR") : Loc.T("Macro_AND", "AND"), Styles.white, GUILayout.Width(40))) or = !or;
+            if(negatable && GUILayout.Button(not? Loc.T("Macro_NOT", "NOT") : "", Styles.danger, GUILayout.Width(40))) not = !not;
             DrawThis();
-            if(Prev != null && GUILayout.Button(new GUIContent("X", "Delete"), Styles.close_button, GUILayout.Width(20))) Delete();
+            if(Prev != null && GUILayout.Button(Loc.Content("Delete", "X", "Delete_Tooltip", "Delete"), Styles.close_button, GUILayout.Width(20))) Delete();
             if(Next != null) Next.Draw();
             else
             {
-                if(GUILayout.Button(new GUIContent("+", "Add new condition"), Styles.active_button, GUILayout.Width(20))) 
+                if(GUILayout.Button(Loc.Content("Macro_AddCondition", "+", "Macro_AddCondition_Tooltip", "Add new condition"), Styles.active_button, GUILayout.Width(20))) 
                     SelectCondition?.Invoke(Add);
             }
             GUILayout.EndHorizontal();
@@ -155,14 +155,14 @@ namespace ThrottleControlledAvionics
                 Value.Draw(Suffix);
                 if(Operator == CompareOperator.EQ)
                 {
-                    GUILayout.Label(new GUIContent("Error", "Interval of tolerance"), 
+                    GUILayout.Label(Loc.Content("Condition_Error", "Error", "Condition_Error_Tooltip", "Interval of tolerance"), 
                                     Styles.white, GUILayout.ExpandWidth(false));
                     Error.Draw(Suffix);
                 }
-                GUILayout.Label(new GUIContent("Wait for:", "The condition should be met at least this number of seconds"), 
+                GUILayout.Label(Loc.Content("Condition_WaitFor", "Wait for:", "Condition_WaitFor_Tooltip", "The condition should be met at least this number of seconds"), 
                                 Styles.white, GUILayout.ExpandWidth(false));
                 Period.Draw("s");
-                if(GUILayout.Button("Done", Styles.confirm_button, GUILayout.ExpandWidth(false)))
+                if(GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.ExpandWidth(false)))
                 {
                     Value.UpdateValue();
                     Error.UpdateValue();

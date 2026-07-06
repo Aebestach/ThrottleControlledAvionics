@@ -24,31 +24,31 @@ namespace ThrottleControlledAvionics
             GUILayout.BeginHorizontal();
             if(CFG.SelectedMacro != null && CFG.MacroIsActive)
             {
-                GUILayout.Label(new GUIContent("Macro: "+CFG.SelectedMacro.Title, "The macro is executing..."), 
+                GUILayout.Label(Loc.Content("MacroExecuting", Loc.F("MacroLabel", "Macro: <<1>>", CFG.SelectedMacro.Title), "MacroExecutingTip", "The macro is executing..."), 
                                 Styles.warning, GUILayout.ExpandWidth(true));
-                CFG.MacroIsActive &= !GUILayout.Button("Pause", Styles.enabled_button, GUILayout.Width(70));
-                if(GUILayout.Button("Stop", Styles.danger_button, GUILayout.ExpandWidth(false))) 
+                CFG.MacroIsActive &= !GUILayout.Button(Loc.T("Pause", "Pause"), Styles.enabled_button, GUILayout.Width(70));
+                if(GUILayout.Button(Loc.T("Stop", "Stop"), Styles.danger_button, GUILayout.ExpandWidth(false))) 
                     CFG.StopMacro();
-                GUILayout.Label("Edit", Styles.inactive_button, GUILayout.ExpandWidth(false));
+                GUILayout.Label(Loc.T("Edit", "Edit"), Styles.inactive_button, GUILayout.ExpandWidth(false));
             }
             else if(CFG.SelectedMacro != null)
             {
-                if(GUILayout.Button(new GUIContent("Macro: "+CFG.SelectedMacro.Title, "Select a macro from databases"), 
+                if(GUILayout.Button(Loc.Content("MacroSelect", Loc.F("MacroLabel", "Macro: <<1>>", CFG.SelectedMacro.Title), "MacroSelectTip", "Select a macro from databases"), 
                                     Styles.normal_button, GUILayout.ExpandWidth(true))) 
                     selecting_macro = !selecting_macro;
-                CFG.MacroIsActive |= GUILayout.Button(CFG.SelectedMacro.Active? "Resume" : "Execute", 
+                CFG.MacroIsActive |= GUILayout.Button(CFG.SelectedMacro.Active? Loc.T("Resume", "Resume") : Loc.T("Execute", "Execute"), 
                                                       Styles.active_button, GUILayout.Width(70));
-                if(GUILayout.Button("Stop", CFG.SelectedMacro.Active? 
+                if(GUILayout.Button(Loc.T("Stop", "Stop"), CFG.SelectedMacro.Active? 
                                     Styles.danger_button : Styles.inactive_button, GUILayout.ExpandWidth(false))) 
                     CFG.SelectedMacro.Rewind();
-                if(GUILayout.Button("Edit", Styles.active_button, GUILayout.ExpandWidth(false)))
+                if(GUILayout.Button(Loc.T("Edit", "Edit"), Styles.active_button, GUILayout.ExpandWidth(false)))
                     TCAMacroEditor.Edit(CFG);
             }
             else 
             {
-                if(GUILayout.Button("Select Macro", Styles.normal_button, GUILayout.ExpandWidth(true))) 
+                if(GUILayout.Button(Loc.T("SelectMacro", "Select Macro"), Styles.normal_button, GUILayout.ExpandWidth(true))) 
                     selecting_macro = !selecting_macro;
-                if(GUILayout.Button("New Macro", Styles.open_button, GUILayout.ExpandWidth(false)))
+                if(GUILayout.Button(Loc.T("NewMacro", "New Macro"), Styles.open_button, GUILayout.ExpandWidth(false)))
                     TCAMacroEditor.Edit(CFG);
             }
             GUILayout.EndHorizontal();

@@ -19,7 +19,7 @@ namespace ThrottleControlledAvionics
     public class SetVerticalSpeedMacroNode : SetFloatMacroNode
     {
         public SetVerticalSpeedMacroNode()
-        { Name = "Set Vertical Speed to"; Suffix = "m/s"; }
+        { Name = Loc.T("Macro_SetVerticalSpeed", "Set Vertical Speed to"); Suffix = "m/s"; }
 
         protected override void OnValueChanged ()
         { Value.Value = Utils.Clamp(Value, -VerticalSpeedControl.C.MaxSpeed, VerticalSpeedControl.C.MaxSpeed); }
@@ -38,7 +38,7 @@ namespace ThrottleControlledAvionics
     public class SetAltitudeMacroNode : SetFloatMacroNode
     {
         public SetAltitudeMacroNode()
-        { Name = "Set Altitude to"; Suffix = "m"; }
+        { Name = Loc.T("Macro_SetAltitude", "Set Altitude to"); Suffix = "m"; }
         protected override bool Action(VesselWrapper VSL)
         { 
             VSL.CFG.BlockThrottle = true;
@@ -54,7 +54,7 @@ namespace ThrottleControlledAvionics
     {
         public SetThrottleMacroNode() 
         { 
-            Name += ":"; Suffix = "%";
+            Name = Loc.T("Macro_SetThrottle", "Set Throttle") + ":"; Suffix = "%";
             Value.Min = 0; Value.Max = 100;
         }
 
@@ -96,7 +96,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasManeuverNode) { Message("No Maneuver Node"); return false; }
+            if(!VSL.HasManeuverNode) { Message("Macro_NoManeuverNode", "No Maneuver Node"); return false; }
             VSL.CFG.AP1.XOnIfNot(Autopilot1.Maneuver);
             return VSL.CFG.AP1[Autopilot1.Maneuver];
         }
@@ -119,7 +119,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.AP1.XOnIfNot(Autopilot1.MatchVelNear);
             return VSL.CFG.AP1[Autopilot1.MatchVelNear];
         }
@@ -142,7 +142,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.AP2.XOnIfNot(Autopilot2.BallisticJump);
             return VSL.CFG.AP2[Autopilot2.BallisticJump];
         }
@@ -161,7 +161,7 @@ namespace ThrottleControlledAvionics
             { 
                 GUILayout.Label(Name, Styles.label, GUILayout.ExpandWidth(false));
                 OrbitInfo.Draw();
-                if(GUILayout.Button("Done", Styles.confirm_button, GUILayout.ExpandWidth(false)))
+                if(GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.ExpandWidth(false)))
                 { 
                     OrbitInfo.UpdateValues();
                     Edit = false; 
@@ -190,7 +190,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.AP2.XOnIfNot(Autopilot2.Deorbit);
             return VSL.CFG.AP2[Autopilot2.Deorbit];
         }
@@ -202,7 +202,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.AP2.XOnIfNot(Autopilot2.Rendezvous);
             return VSL.CFG.AP2[Autopilot2.Rendezvous];
         }
@@ -214,7 +214,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.Nav.XOnIfNot(Navigation.GoToTarget);
             return VSL.CFG.Nav[Navigation.GoToTarget];
         }
@@ -226,7 +226,7 @@ namespace ThrottleControlledAvionics
     {
         protected override bool Action(VesselWrapper VSL)
         {
-            if(!VSL.HasTarget) { Message("No Target"); return false; }
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.Nav.XOn(Navigation.FollowTarget);
             return false;
         }
@@ -258,12 +258,12 @@ namespace ThrottleControlledAvionics
         protected override void DrawThis ()
         {
             var title = Name;
-            if(Path.Count > 0) title += " (waypoints stored)";
+            if(Path.Count > 0) title += Loc.T("Macro_WaypointsStored", " (waypoints stored)");
             GUILayout.BeginHorizontal();
             if(Edit)
             { 
                 Edit &= !GUILayout.Button(title, Styles.active_button, GUILayout.ExpandWidth(false));
-                if(EditedCFG != null && GUILayout.Button("Copy waypoints from Vessel", 
+                if(EditedCFG != null && GUILayout.Button(Loc.T("Macro_CopyWaypoints", "Copy waypoints from Vessel"), 
                                                          Styles.active_button, GUILayout.ExpandWidth(false)))
                     Path = EditedCFG.Path.Copy();
             }
@@ -279,7 +279,7 @@ namespace ThrottleControlledAvionics
                     VSL.CFG.Path = Path.Copy();
                 path_loaded = true;
             }
-            if(VSL.CFG.Path.Count == 0) { Message("No Waypoints"); return false; }
+            if(VSL.CFG.Path.Count == 0) { Message("Macro_NoWaypoints", "No Waypoints"); return false; }
             VSL.CFG.Nav.XOnIfNot(Navigation.FollowPath);
             return VSL.CFG.Nav[Navigation.FollowPath];
         }
@@ -294,7 +294,7 @@ namespace ThrottleControlledAvionics
         [Persistent] public Mode mode;
         [Persistent] public FloatField Bearing = new FloatField("F1", 0, 360);
 
-        public FlyMacroNode() { Name += ":"; Suffix = "m/s"; }
+        public FlyMacroNode() { Name = Loc.T("Macro_Fly", "Fly") + ":"; Suffix = "m/s"; }
 
         protected override void DrawThis()
         {
@@ -306,7 +306,7 @@ namespace ThrottleControlledAvionics
                     mode = (Mode)(((int)mode+1)%6);
                 if(mode == Mode.Bearing) Bearing.Draw("°", 10);
                 if(mode != Mode.Off) Value.Draw(Suffix);
-                if(GUILayout.Button("Done", Styles.confirm_button, GUILayout.ExpandWidth(false)))
+                if(GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.ExpandWidth(false)))
                 { 
                     Bearing.UpdateValue();
                     Value.UpdateValue();
@@ -360,7 +360,7 @@ namespace ThrottleControlledAvionics
         protected readonly Timer T = new Timer();
 
         public WaitMacroNode()
-        { Name = "Wait for"; Suffix = "s"; Value.Value = (float)T.Period; }
+        { Name = Loc.T("Macro_WaitFor", "Wait for"); Suffix = "s"; Value.Value = (float)T.Period; }
 
         public override void Load(ConfigNode node)
         { base.Load(node); T.Period = Value; T.Reset(); }
@@ -385,7 +385,7 @@ namespace ThrottleControlledAvionics
         [Persistent] public double StopUT = -1;
 
         public TimeWarpMacroNode()
-        { Name = "Warp for"; Suffix = "s"; }
+        { Name = Loc.T("Macro_WarpFor", "Warp for"); Suffix = "s"; }
 
         public override void Rewind()
         { base.Rewind(); StopUT = -1; }
@@ -449,11 +449,11 @@ namespace ThrottleControlledAvionics
             if(Edit)
             { 
                 Edit &= !GUILayout.Button(Name, Styles.active_button, GUILayout.ExpandWidth(false));
-                Group = Utils.IntSelector(Group, 0, tooltip: "Group ID");
+                Group = Utils.IntSelector(Group, 0, tooltip: Loc.T("Macro_GroupID", "Group ID"));
                 if(EditedCFG != null && EditedCFG.ActiveProfile != null && EditedCFG.ActiveProfile.Single.Count > 0)
                 {
                     GUILayout.BeginVertical();
-                    if(GUILayout.Button("Show Single Engines", Styles.normal_button, GUILayout.ExpandWidth(true)))
+                    if(GUILayout.Button(Loc.T("Macro_ShowSingleEngines", "Show Single Engines"), Styles.normal_button, GUILayout.ExpandWidth(true)))
                         show_single = !show_single;
                     if(show_single)
                     {

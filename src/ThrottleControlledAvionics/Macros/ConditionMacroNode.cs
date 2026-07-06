@@ -19,7 +19,7 @@ namespace ThrottleControlledAvionics
         [Persistent] public PersistentBaseList<Condition> Conditions = new PersistentBaseList<Condition>();
         public bool HasConditions { get { return Conditions.Count > 0; } }
         protected List<Condition> deleted_conditions = new List<Condition>();
-        protected string Keyword = "IF";
+        protected string Keyword = Loc.T("Macro_IF", "IF");
 
         public override void SetConditionSelector(Condition.Selector selector)
         { 
@@ -52,11 +52,11 @@ namespace ThrottleControlledAvionics
                 { 
                     var c = Conditions[i];
                     GUILayout.BeginHorizontal();
-                    if(i > 0) { if(GUILayout.Button(c.or? "OR" : "AND", Styles.white, GUILayout.Width(50))) c.or = !c.or; }
+                    if(i > 0) { if(GUILayout.Button(c.or? Loc.T("Macro_OR", "OR") : Loc.T("Macro_AND", "AND"), Styles.white, GUILayout.Width(50))) c.or = !c.or; }
                     else if(GUILayout.Button(new GUIContent(Keyword, Label.tooltip), Edit? Styles.active_button : Styles.normal_button, GUILayout.ExpandWidth(false)))
                         Edit = !Edit;
                     c.Draw();
-                    if(Edit && GUILayout.Button(new GUIContent("X", "Delete"), Styles.close_button, GUILayout.Width(20))) deleted_conditions.Add(c);
+                    if(Edit && GUILayout.Button(Loc.Content("Delete", "X", "Delete_Tooltip", "Delete"), Styles.close_button, GUILayout.Width(20))) deleted_conditions.Add(c);
                     GUILayout.EndHorizontal();
                 }
             }
@@ -65,11 +65,11 @@ namespace ThrottleControlledAvionics
                 GUILayout.BeginHorizontal();
                 if(GUILayout.Button(new GUIContent(Keyword, Label.tooltip), Edit? Styles.active_button : Styles.normal_button, GUILayout.ExpandWidth(false)))
                     Edit = !Edit;
-                GUILayout.Label("TRUE", Styles.white, GUILayout.ExpandWidth(true));
+                GUILayout.Label(Loc.T("Macro_TRUE", "TRUE"), Styles.white, GUILayout.ExpandWidth(true));
                 GUILayout.EndHorizontal();
             }
             if(Edit && Parent != null && 
-               GUILayout.Button("Add Condition", Styles.active_button, GUILayout.ExpandWidth(true)))
+               GUILayout.Button(Loc.T("Macro_AddCondition", "Add Condition"), Styles.active_button, GUILayout.ExpandWidth(true)))
             { 
                 if(SelectCondition != null) 
                     SelectCondition(cnd => 

@@ -89,14 +89,25 @@ namespace ThrottleControlledAvionics
         public enum Mode { DeltaV, TimeToTarget, Manual }
 
         static int NumModes = Enum.GetValues(typeof(Mode)).Length;
-        static string[] ModeNames = { "Min. dV", "Fast Transfer", "Manual" };
-
-        static string[] ModeDesc =
+        static string ModeName(Mode m)
         {
-            "Use the most fuel-efficient transfer",
-            "Prefer transfers that take less overall time",
-            "Manually choose transfer if several are available"
-        };
+            switch(m)
+            {
+            case Mode.DeltaV: return Loc.T("Rendezvous_Mode_MinDV", "Min. dV");
+            case Mode.TimeToTarget: return Loc.T("Rendezvous_Mode_FastTransfer", "Fast Transfer");
+            default: return Loc.T("Rendezvous_Mode_Manual", "Manual");
+            }
+        }
+
+        static string ModeDesc(Mode m)
+        {
+            switch(m)
+            {
+            case Mode.DeltaV: return Loc.T("Rendezvous_Mode_MinDV_Desc", "Use the most fuel-efficient transfer");
+            case Mode.TimeToTarget: return Loc.T("Rendezvous_Mode_FastTransfer_Desc", "Prefer transfers that take less overall time");
+            default: return Loc.T("Rendezvous_Mode_Manual_Desc", "Manually choose transfer if several are available");
+            }
+        }
 
         CDOS_Optimizer2D optimizer;
 
@@ -181,12 +192,12 @@ namespace ThrottleControlledAvionics
                 return false;
             if(TargetVessel == null)
             {
-                Status(Colors.Warning, "Target should be a vessel or an asteroid");
+                Status(Colors.Warning, Loc.T("Rendezvous_TargetVessel", "Target should be a vessel or an asteroid"));
                 return false;
             }
             if(TargetVessel.LandedOrSplashed)
             {
-                Status(Colors.Warning, "Target is landed");
+                Status(Colors.Warning, Loc.T("Rendezvous_TargetLanded", "Target is landed"));
                 return false;
             }
             if(!VSL.OnPlanet
@@ -198,16 +209,16 @@ namespace ThrottleControlledAvionics
                 if(dInc > 90)
                 {
                     Status(Colors.Warning,
-                        "Target orbits in the oposite direction.\n"
-                        + "You need to change orbit direction before the rendezvou maneuver.");
+                        Loc.T("Rendezvous_OppositeOrbit", "Target orbits in the oposite direction.\n"
+                        + "You need to change orbit direction before the rendezvou maneuver."));
                     return false;
                 }
                 else if(dInc > C.MaxInclinationDelta)
                 {
                     Status(Colors.Warning,
-                        "Target orbit plane is tilted more than {0:F}° with respect to ours.\n"
+                        Loc.F("Rendezvous_InclinationDelta", "Target orbit plane is tilted more than {0:F}° with respect to ours.\n"
                         + "You need to change orbit plane before the rendezvou maneuver.",
-                        C.MaxInclinationDelta);
+                        C.MaxInclinationDelta));
                     return false;
                 }
             }
@@ -530,9 +541,9 @@ namespace ThrottleControlledAvionics
                 Launch cur = null;
                 while(startUT < endUT)
                 {
-                    Status("{0} searching for possible launch windows:{1:F0}",
+                    Status(Loc.F("Rendezvous_SearchLaunchWindows", "{0} searching for possible launch windows:{1:F0}",
                         ProgressIndicator.Get,
-                        (endUT - startUT) / dT);
+                        (endUT - startUT) / dT));
 #if DEBUG
                     if(setp_by_step_computation && !string.IsNullOrEmpty(TCAGui.StatusMessage))
                     {
@@ -567,10 +578,10 @@ namespace ThrottleControlledAvionics
                     dT = 100;
                     while(Math.Abs(dT) > 0.01)
                     {
-                        Status("{0} checking possible launch windows: {1}/{2}",
+                        Status(Loc.F("Rendezvous_CheckLaunchWindows", "{0} checking possible launch windows: {1}/{2}",
                             ProgressIndicator.Get,
                             i + 1,
-                            minimaCount);
+                            minimaCount));
 #if DEBUG
                         if(setp_by_step_computation && !string.IsNullOrEmpty(TCAGui.StatusMessage))
                         {
@@ -617,8 +628,8 @@ namespace ThrottleControlledAvionics
             if(best == null)
             {
                 if(!StartInPlane)
-                    Utils.Message("No launch window was found for direct rendezvous.\n\n"
-                                  + "Launching in plane with the target...");
+                    Utils.Message(Loc.T("Rendezvous_NoLaunchWindow", "No launch window was found for direct rendezvous.\n\n"
+                                  + "Launching in plane with the target."));
                 var in_plane_UT = VSL.Physics.UT + ManeuverOffset;
                 var incDelta1 = inclinationDelta(in_plane_UT);
                 var incDelta2 = inclinationDelta(in_plane_UT+Body.rotationPeriod/4);
@@ -633,9 +644,9 @@ namespace ThrottleControlledAvionics
                     {
                         //Log("proj_angle {}, time2launch {}", 
                         //proj_anlgle, in_plane_UT-VSL.Physics.UT);//debug
-                        Status("{0} choosing optimal in-plane launch window: {1:P0}",
+                        Status(Loc.F("Rendezvous_ChooseLaunchWindow", "{0} choosing optimal in-plane launch window: {1:P0}",
                             ProgressIndicator.Get,
-                            (in_plane_UT - VSL.Physics.UT) / maxT);
+                            (in_plane_UT - VSL.Physics.UT) / maxT));
                         yield return 0;
                         in_plane_UT = findInPlaneUT(in_plane_UT + Body.rotationPeriod / 2,
                             Body.rotationPeriod / 10);
@@ -866,7 +877,7 @@ namespace ThrottleControlledAvionics
                 case Stage.Launch:
                     if(ToOrbit.LaunchUT > VSL.Physics.UT)
                     {
-                        TmpStatus("Waiting for launch window...");
+                        TmpStatus(Loc.T("Rendezvous_WaitLaunchWindow", "Waiting for launch window..."));
                         ToOrbit.UpdateTargetPosition();
                         VSL.Info.Countdown = ToOrbit.LaunchUT - VSL.Physics.UT;
                         VSL.Controls.WarpToTime = ToOrbit.LaunchUT;
@@ -909,7 +920,7 @@ namespace ThrottleControlledAvionics
                         start_orbit();
                     break;
                 case Stage.StartOrbit:
-                    TmpStatus("Achiving orbit...");
+                    TmpStatus(Loc.T("Rendezvous_AchievingOrbit", "Achiving orbit..."));
                     if(CFG.AP1[Autopilot1.Maneuver])
                         break;
                     next_stage();
@@ -928,7 +939,7 @@ namespace ThrottleControlledAvionics
                         if(VSL.Physics.UT < trajectory.StartUT - ManeuverOffset
                            && VesselOrbit.radius < Body.Radius + Body.atmosphereDepth)
                         {
-                            TmpStatus("Coasting...");
+                            TmpStatus(Loc.T("Rendezvous_Coasting", "Coasting..."));
                             CFG.AT.OnIfNot(Attitude.Prograde);
                             break;
                         }
@@ -953,14 +964,14 @@ namespace ThrottleControlledAvionics
                     else
                     {
                         Status(Colors.Danger,
-                            "Failed to compute rendezvou trajectory.\nPlease, try again.");
+                            Loc.T("Rendezvous_ComputeFailed", "Failed to compute rendezvou trajectory.\nPlease, try again."));
                         Disable();
                     }
                     break;
                 case Stage.ComputeCorrection:
                     if(TimeWarp.CurrentRateIndex == 0 && TimeWarp.CurrentRate > 1)
                     {
-                        TmpStatus("Waiting for Time Warp to end...");
+                        TmpStatus(Loc.T("Rendezvous_WaitWarp", "Waiting for Time Warp to end..."));
                         break;
                     }
                     if(!trajectory_computed())
@@ -1006,13 +1017,13 @@ namespace ThrottleControlledAvionics
                         compute_rendezvou_trajectory();
                     break;
                 case Stage.Rendezvou:
-                    TmpStatus("Executing rendezvous maneuver...");
+                    TmpStatus(Loc.T("Rendezvous_ExecutingManeuver", "Executing rendezvous maneuver..."));
                     if(CFG.AP1[Autopilot1.Maneuver])
                         break;
                     next_stage();
                     break;
                 case Stage.Coast:
-                    TmpStatus("Coasting...");
+                    TmpStatus(Loc.T("Rendezvous_Coasting", "Coasting..."));
                     if(!CorrectionTimer.TimePassed)
                     {
                         if(VSL.Controls.CanWarp)
@@ -1029,7 +1040,7 @@ namespace ThrottleControlledAvionics
                     fine_tune_approach();
                     break;
                 case Stage.MatchOrbits:
-                    TmpStatus("Matching orbits at nearest approach...");
+                    TmpStatus(Loc.T("Rendezvous_MatchingOrbits", "Matching orbits at nearest approach..."));
                     update_trajectory();
                     if(CFG.AP1[Autopilot1.Maneuver])
                     {
@@ -1052,10 +1063,10 @@ namespace ThrottleControlledAvionics
                             VSL.Controls.StopWarp();
                             if(threshold > 0)
                             {
-                                TmpStatus("Matching orbits at nearest approach...\n"
+                                TmpStatus(Loc.F("Rendezvous_ProximityAlert", "Matching orbits at nearest approach...\n"
                                           + "{0} Clearence {1:F1} m",
                                     Colors.Warning.Tag("<b>PROXIMITY ALERT!</b>"),
-                                    trajectory.DistanceToTarget);
+                                    trajectory.DistanceToTarget));
                                 var correction =
                                     Vector3d.Exclude(RelPos, -trajectory.AtTargetRelPos).normalized
                                     * threshold
@@ -1090,7 +1101,7 @@ namespace ThrottleControlledAvionics
                     next_stage();
                     break;
                 case Stage.Approach:
-                    TmpStatus("Approaching...");
+                    TmpStatus(Loc.T("Rendezvous_Approaching", "Approaching..."));
                     THR.DeltaV = 0;
                     var rel_pos = RelPos;
                     var dist = rel_pos.magnitude;
@@ -1123,12 +1134,12 @@ namespace ThrottleControlledAvionics
                 case Stage.Brake:
                     if(CFG.AP1[Autopilot1.MatchVelNear])
                     {
-                        TmpStatus("Braking near target...");
+                        TmpStatus(Loc.T("Rendezvous_BrakingNearTarget", "Braking near target..."));
                         break;
                     }
                     if(CFG.AP1[Autopilot1.MatchVel])
                     {
-                        TmpStatus("Braking...");
+                        TmpStatus(Loc.T("Rendezvous_Braking", "Braking..."));
                         if((RelVel).magnitude > MAN.MinDeltaV * 1.1f)
                             break;
                         CFG.AP1.Off();
@@ -1153,8 +1164,8 @@ namespace ThrottleControlledAvionics
             }
         }
 
-        static GUIContent button_content = new GUIContent("Rendezvous",
-            "Compute and perform a rendezvous maneuver, then brake near the target.");
+        static GUIContent button_content => Loc.Content("Rendezvous_Button", "Rendezvous",
+            "Rendezvous_Button_Tooltip", "Compute and perform a rendezvous maneuver, then brake near the target.");
 
         public override void Draw()
         {
@@ -1210,19 +1221,20 @@ namespace ThrottleControlledAvionics
             {
                 var in_plane = StartInPlane;
                 GUILayout.BeginHorizontal();
-                if(Utils.ButtonSwitch("Start In Plane",
+                if(Utils.ButtonSwitch(Loc.T("Rendezvous_StartInPlane", "Start In Plane"),
                     in_plane,
-                    "Launch in plane with the target, then rendezvous from orbit.",
+                    Loc.T("Rendezvous_StartInPlane_Tooltip", "Launch in plane with the target, then rendezvous from orbit."),
                     GUILayout.ExpandWidth(true)))
                     in_plane = true;
-                if(Utils.ButtonSwitch("Attempt direct rendezvous",
+                if(Utils.ButtonSwitch(Loc.T("Rendezvous_DirectRendezvous", "Attempt direct rendezvous"),
                     !in_plane,
-                    "Try to find a launch window to rendezvous with the target " + "directly.",
+                    Loc.T("Rendezvous_DirectRendezvous_Tooltip", "Try to find a launch window to rendezvous with the target directly."),
                     GUILayout.ExpandWidth(true)))
                     in_plane = false;
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(new GUIContent("Max. Days to Launch:",
+                GUILayout.Label(Loc.Content("Rendezvous_MaxDaysLaunch", "Max. Days to Launch:",
+                        "Rendezvous_MaxDaysLaunch_Tooltip",
                         "Maximum allowed days until launch. If no suitable "
                         + "launch window is found within that period, launch when "
                         + "in plane with the target."),
@@ -1235,14 +1247,17 @@ namespace ThrottleControlledAvionics
                 {
                     GUILayout.BeginHorizontal();
                     GUILayout.BeginVertical();
-                    GUILayout.Label(new GUIContent("Gravity Turn Sharpness:",
+                    GUILayout.Label(Loc.Content("Rendezvous_GravityTurnSharpness", "Gravity Turn Sharpness:",
+                            "Rendezvous_GravityTurnSharpness_Tooltip",
                             "How sharp the gravity turn will be. "
                             + "Used only when direct rendezvous is possible."),
                         GUILayout.ExpandWidth(true));
-                    GUILayout.Label(new GUIContent("Max. Distance:",
+                    GUILayout.Label(Loc.Content("Rendezvous_MaxDistance", "Max. Distance:",
+                            "Rendezvous_MaxDistance_Tooltip",
                             "Maximum allowed distance to the target at apoapsis."),
                         GUILayout.ExpandWidth(true));
-                    GUILayout.Label(new GUIContent("Max. Inclination Delta:",
+                    GUILayout.Label(Loc.Content("Rendezvous_MaxInclinationDelta", "Max. Inclination Delta:",
+                            "Rendezvous_MaxInclinationDelta_Tooltip",
                             "Maximum allowed difference between initial "
                             + "vessel orbit and target orbit. If that requirement "
                             + "is not met, launch in plane with the target orbit."),
@@ -1259,14 +1274,14 @@ namespace ThrottleControlledAvionics
             }
             if(computing)
             {
-                GUILayout.Label(new GUIContent("Search Mode: " + ModeNames[(int)mode],
-                        ModeDesc[(int)mode]),
+                GUILayout.Label(new GUIContent(Loc.T("Rendezvous_SearchMode", "Search Mode: ") + ModeName(mode),
+                        ModeDesc(mode)),
                     Styles.inactive,
                     GUILayout.ExpandWidth(true));
                 if(!VSL.LandedOrSplashed && HardMaxStart)
                 {
-                    GUILayout.Label(new GUIContent($"Max. Days to Start: {MaxDays.Value:F0} d",
-                            "Maximum time allowed before the first maneuver."),
+                    GUILayout.Label(new GUIContent(Loc.F("Rendezvous_MaxDaysStartValue", "Max. Days to Start: {0:F0} d", MaxDays.Value),
+                            Loc.T("Rendezvous_MaxDaysStartValue_Tooltip", "Maximum time allowed before the first maneuver.")),
                         Styles.inactive,
                         GUILayout.ExpandWidth(true));
                 }
@@ -1274,8 +1289,8 @@ namespace ThrottleControlledAvionics
             else
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Search Mode:", GUILayout.ExpandWidth(false));
-                var choice = Utils.LeftRightChooser(ModeNames[(int)mode], ModeDesc[(int)mode]);
+                GUILayout.Label(Loc.T("Rendezvous_SearchModeLabel", "Search Mode:"), GUILayout.ExpandWidth(false));
+                var choice = Utils.LeftRightChooser(ModeName(mode), ModeDesc(mode));
                 if(choice > 0)
                     mode = (Mode)(((int)mode + 1) % NumModes);
                 if(choice < 0)
@@ -1284,7 +1299,8 @@ namespace ThrottleControlledAvionics
                 if(!VSL.LandedOrSplashed)
                 {
                     GUILayout.BeginHorizontal();
-                    Utils.ButtonSwitch(new GUIContent("Max. Days to Start:",
+                    Utils.ButtonSwitch(Loc.Content("Rendezvous_MaxDaysStart", "Max. Days to Start:",
+                            "Rendezvous_MaxDaysStart_Tooltip",
                             "If enabled, sets maximum time allowed before the first maneuver."),
                         ref HardMaxStart,
                         GUILayout.ExpandWidth(false));
@@ -1298,14 +1314,14 @@ namespace ThrottleControlledAvionics
             GUILayout.FlexibleSpace();
             if(CFG.AP2[Autopilot2.Rendezvous])
             {
-                if(GUILayout.Button(new GUIContent("Abort", "Abort Rendezvous Autopilot"),
+                if(GUILayout.Button(Loc.Content("Abort", "Abort", "Rendezvous_Abort_Tooltip", "Abort Rendezvous Autopilot"),
                     Styles.danger_button,
                     GUILayout.Width(60)))
                     CFG.AP2.XOff();
             }
             else
             {
-                if(GUILayout.Button(new GUIContent("Start", "Start Rendezvous Autopilot"),
+                if(GUILayout.Button(Loc.Content("Start", "Start", "Rendezvous_Start_Tooltip", "Start Rendezvous Autopilot"),
                     Styles.enabled_button,
                     GUILayout.Width(60)))
                     CFG.AP2.XOn(Autopilot2.Rendezvous);

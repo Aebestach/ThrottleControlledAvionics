@@ -136,8 +136,8 @@ namespace ThrottleControlledAvionics
         }
 
         bool draw_forward_direction;
-        static readonly GUIContent X_cnt = new GUIContent("X", "Disable Bearing Control");
-        static readonly GUIContent Enable_cnt = new GUIContent("Bearing", "Enable Bearing Control");
+        static GUIContent X_cnt => Loc.Content("Bearing_Disable", "X", "Bearing_Disable_Tooltip", "Disable Bearing Control");
+        static GUIContent Enable_cnt => Loc.Content("Bearing_Enable", "Bearing", "Bearing_Enable_Tooltip", "Enable Bearing Control");
         static Color dir_color = new Color(0, 1, 0, 0.5f);
 
         public void DrawForwardDirection()
@@ -158,7 +158,7 @@ namespace ThrottleControlledAvionics
         {
             if(CFG.BR[BearingMode.Auto] || !DirectionOverride.IsZero())
             {
-                GUILayout.Label("AutoBearing", Styles.enabled, GUILayout.ExpandWidth(true));
+                GUILayout.Label(Loc.T("Bearing_AutoBearing", "AutoBearing"), Styles.enabled, GUILayout.ExpandWidth(true));
             }
             else if(CFG.BR[BearingMode.User])
             {

@@ -81,7 +81,7 @@ namespace ThrottleControlledAvionics
             {
                 get
                 {
-                    var s = ProgressIndicator.Get + " searching for the best trajectory";
+                    var s = ProgressIndicator.Get + Loc.T("Rendezvous_SearchBestTrajectory", " searching for the best trajectory");
                     if(Best == null)
                         return s + "...";
                     return s + "\n" + BestDesc;
@@ -286,10 +286,10 @@ namespace ThrottleControlledAvionics
                                               Colors.Good.Tag(Utils.formatTimeDelta(tts + transfer)),
                                               tts > opt.ren.ManeuverOffset ?
                                               Colors.Neutral.Tag(tts_str) : Colors.Danger.Tag(tts_str));
-                    var sel = GUILayout.Button(new GUIContent(label, "Press to select this transfer"),
+                    var sel = GUILayout.Button(Loc.Content("Rendezvous_SelectTransfer", label, "Rendezvous_SelectTransfer_Tooltip", "Press to select this transfer"),
                                                Styles.rich_label, GUILayout.ExpandWidth(false));
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label("dV: " + Colors.Active.Tag("<b>{0:F1}</b> m/s", trajectory.GetTotalDeltaV()),
+                    GUILayout.Label(Loc.T("Rendezvous_DVLabel", "dV: ") + Colors.Active.Tag("<b>{0:F1}</b> m/s", trajectory.GetTotalDeltaV()),
                                     Styles.rich_label, GUILayout.ExpandWidth(false));
                     GUILayout.FlexibleSpace();
                     if(selected)
@@ -668,7 +668,16 @@ namespace ThrottleControlledAvionics
             }
 
             int sort_order = 0;
-            static string[] sorting = { "dV", "ETA", "Start" };
+            static string SortLabel(int i)
+            {
+                switch(i)
+                {
+                case 0: return Loc.T("Rendezvous_SortDV", "dV");
+                case 1: return Loc.T("Rendezvous_SortETA", "ETA");
+                default: return Loc.T("Rendezvous_SortStart", "Start");
+                }
+            }
+            static string[] SortingLabels() => new[] { SortLabel(0), SortLabel(1), SortLabel(2) };
             Vector2 scroll = Vector2.zero;
             public void DrawBestTrajecotries()
             {
@@ -676,9 +685,9 @@ namespace ThrottleControlledAvionics
                     return;
                 GUILayout.BeginVertical();
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Sort by:", GUILayout.ExpandWidth(false));
+                GUILayout.Label(Loc.T("Rendezvous_SortBy", "Sort by:"), GUILayout.ExpandWidth(false));
                 var old_order = sort_order;
-                sort_order = GUILayout.Toolbar(sort_order, sorting, GUILayout.ExpandWidth(true));
+                sort_order = GUILayout.Toolbar(sort_order, SortingLabels(), GUILayout.ExpandWidth(true));
                 if(sort_order != old_order)
                     sort_best_points();
                 GUILayout.EndHorizontal();
@@ -693,7 +702,7 @@ namespace ThrottleControlledAvionics
                     }
                 }
                 GUILayout.EndScrollView();
-                if(Best != null && GUILayout.Button(new GUIContent("Continue", "Continue using selected transfer"),
+                if(Best != null && GUILayout.Button(Loc.Content("Continue", "Continue", "Rendezvous_ContinueTransfer_Tooltip", "Continue using selected transfer"),
                                                     Styles.enabled_button, GUILayout.ExpandWidth(true)))
                     manual_stop = true;
                 GUILayout.EndVertical();
@@ -704,11 +713,11 @@ namespace ThrottleControlledAvionics
                 get
                 {
                     if(ren.mode == Mode.Manual && Best != null && progress.Equals(1))
-                        return "Selected transfer:\n" + BestDesc;
+                        return Loc.T("Rendezvous_SelectedTransfer", "Selected transfer:\n") + BestDesc;
                     var s = ProgressIndicator.Get +
                                              (ren.mode == Mode.Manual
-                                                 ? " searching for transfers"
-                                                 : " searching for the best transfer");
+                                                 ? Loc.T("Rendezvous_SearchTransfers", " searching for transfers")
+                                                 : Loc.T("Rendezvous_SearchBestTransfer", " searching for the best transfer"));
                     s += progress < 0 ? "..." : $" {progress:P0}";
                     return Best != null ? s + "\n" + BestDesc : s;
                 }

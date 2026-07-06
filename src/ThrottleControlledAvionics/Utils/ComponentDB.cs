@@ -47,10 +47,14 @@ namespace ThrottleControlledAvionics
                 Info = info;
                 Component = component;
                 //parse name and create GUIContent
-                Name = Info == null || string.IsNullOrEmpty(Info.Name)? 
-                    Utils.ParseCamelCase(Component.Name.Replace(typeof(T).Name, "")) : Info.Name;
+                var shortName = Component.Name.Replace(typeof(T).Name, "");
+                var defaultName = Utils.ParseCamelCase(shortName);
+                if(Info == null || string.IsNullOrEmpty(Info.Name))
+                    Name = Loc.T("Macro_" + shortName, defaultName);
+                else
+                    Name = Loc.T("Macro_" + Info.Name.Replace(" ", ""), Info.Name);
                 if(Info != null && !string.IsNullOrEmpty(Info.Description))
-                   Label = new GUIContent(Name, Info.Description);
+                    Label = new GUIContent(Name, Loc.T("Macro_" + shortName + "_Desc", Info.Description));
                 else Label = new GUIContent(Name);
                 //make generic factory method
                 Create = (Factory)Delegate

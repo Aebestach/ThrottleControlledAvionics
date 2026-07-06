@@ -69,7 +69,7 @@ namespace ThrottleControlledAvionics
                 foreach(var tier in tiers.Keys)
                 {
                     GUILayout.BeginVertical(Styles.white, GUILayout.ExpandHeight(true));
-                    GUILayout.Label("Tier " + tier, GUILayout.ExpandWidth(true));
+                    GUILayout.Label(Loc.F("Tier", "Tier <<1>>", tier), GUILayout.ExpandWidth(true));
                     tiers[tier].ForEach(node => button_pressed = node.Draw(CFG) || button_pressed);
                     GUILayout.EndVertical();
                     if(tier < tiers.Count)
@@ -140,7 +140,7 @@ namespace ThrottleControlledAvionics
             GUILayout.EndVertical();
             if(!HighLogic.LoadedSceneIsFlight)
             {
-                if(GUILayout.Button(new GUIContent("Enable All", "Enable all disabled modules"),
+                if(GUILayout.Button(Loc.Content("EnableAll", "Enable All", "EnableAllTip", "Enable all disabled modules"),
                     Styles.active_button,
                     GUILayout.ExpandWidth(true)))
                 {
@@ -148,7 +148,7 @@ namespace ThrottleControlledAvionics
                     update_part_status();
                 }
             }
-            if(GUILayout.Button("Close", Styles.close_button, GUILayout.ExpandWidth(true)))
+            if(GUILayout.Button(Loc.T("Close", "Close"), Styles.close_button, GUILayout.ExpandWidth(true)))
                 Show(false);
             GUILayout.EndVertical();
             TooltipsAndDragWindow();
@@ -170,8 +170,8 @@ namespace ThrottleControlledAvionics
                         WindowPos,
                         MainWindow,
                         HighLogic.LoadedSceneIsFlight
-                            ? "Installed TCA Modules"
-                            : "Select TCA Modules",
+                            ? Loc.T("InstalledTCAModules", "Installed TCA Modules")
+                            : Loc.T("SelectTCAModules", "Select TCA Modules"),
                         GUILayout.Width(width),
                         GUILayout.Height(height))
                     .clampToScreen();

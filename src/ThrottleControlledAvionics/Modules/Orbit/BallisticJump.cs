@@ -57,10 +57,8 @@ namespace ThrottleControlledAvionics
             get { return Autopilot2.BallisticJump; }
         }
 
-        protected override string program_name
-        {
-            get { return "'Jump To' Autopilot"; }
-        }
+        protected override string program_name =>
+            Loc.T("BallisticJump_ProgramName", "'Jump To' Autopilot");
 
         protected override void Reset()
         {
@@ -76,8 +74,8 @@ namespace ThrottleControlledAvionics
             if(!base.check_target()) return false;
             if(VesselOrbit.PeR > Body.Radius)
             {
-                Status(Colors.Warning, "Cannot perform <b>Ballistic Jump</b> from orbit.\n" +
-                       "Use <b>Land at Target</b> instead.");
+                Status(Colors.Warning, Loc.T("BallisticJump_FromOrbit", "Cannot perform <b>Ballistic Jump</b> from orbit.\n" +
+                       "Use <b>Land at Target</b> instead."));
                 return false;
             }
             //compute initial orbit estimation using LambertSolver
@@ -88,8 +86,8 @@ namespace ThrottleControlledAvionics
                 #if DEBUG
                 Log("Too close jump trajectory: {}", trj);
                 #endif
-                Status(Colors.Warning, "The target is too close for the jump.\n" +
-                       "Use <b>Go To</b> instead.");
+                Status(Colors.Warning, Loc.T("BallisticJump_TooClose", "The target is too close for the jump.\n" +
+                       "Use <b>Go To</b> instead."));
                 return false;
             }
             return true;
@@ -393,7 +391,7 @@ namespace ThrottleControlledAvionics
             }
         }
 
-        static readonly GUIContent button_content = new GUIContent("Jump To", "Fly to the target using ballistic trajectory.");
+        static GUIContent button_content => Loc.Content("BallisticJump_Button", "Jump To", "BallisticJump_Button_Tooltip", "Fly to the target using ballistic trajectory.");
         public override void Draw()
         {
             #if DEBUG
@@ -417,7 +415,7 @@ namespace ThrottleControlledAvionics
             }
             else if(UI.NAV != null)
             {
-                if(GUILayout.Button(new GUIContent("Jump To", "Select target point to jump to"),
+                if(GUILayout.Button(Loc.Content("BallisticJump_SelectTarget", "Jump To", "BallisticJump_SelectTarget_Tooltip", "Select target point to jump to"),
                                     Styles.active_button, GUILayout.ExpandWidth(true)))
                     UI.NAV.SetSurfaceTarget();
             }

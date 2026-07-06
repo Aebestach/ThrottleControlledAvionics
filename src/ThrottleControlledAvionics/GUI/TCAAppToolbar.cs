@@ -43,7 +43,7 @@ namespace ThrottleControlledAvionics
         protected override GameScenes[] TB_SCENES =>
         new[] { GameScenes.FLIGHT, GameScenes.EDITOR };
 
-        protected override string button_tooltip => "Throttle Controlled Avionics";
+        protected override string button_tooltip => Loc.T("AppToolbarTip", "Throttle Controlled Avionics");
 
         protected override bool ForceAppLauncher => Globals.Instance.UseStockAppLauncher;
 

@@ -214,11 +214,10 @@ namespace ThrottleControlledAvionics
                 case Stage.Start:
                     if(dist > C.MaxApproachDistance)
                     {
-                        Status(Colors.Warning.Tag("WARNING: ") +
-                               "Nearest approach distance is " +
-                               Colors.Selected2.Tag("<b>{0}</b>\n") +
-                               Colors.Danger.Tag("<b>Push to proceed. At your own risk.</b>"),
-                               Utils.formatBigValue((float)dist, "m"));
+                        Status(Colors.Warning.Tag(Loc.T("Warning_Prefix", "WARNING: ")) +
+                               Loc.F("MatchVel_ApproachDist", "Nearest approach distance is <<1>>\n<<2>>",
+                               Utils.formatBigValue((float)dist, "m"),
+                               Colors.Danger.Tag(Loc.T("MatchVel_ProceedRisk", "<b>Push to proceed. At your own risk.</b>"))));
                         stage = Stage.Wait;
                         goto case Stage.Wait;
                     }
@@ -240,18 +239,18 @@ namespace ThrottleControlledAvionics
         {
             if(ControlsActive)
             {
-                if(Utils.ButtonSwitch("Match Velocity", CFG.AP1[Autopilot1.MatchVel], 
-                          "Continuously match orbital velocity with the target", GUILayout.ExpandWidth(true)))
+                if(Utils.ButtonSwitch(Loc.T("MatchVel_Button", "Match Velocity"), CFG.AP1[Autopilot1.MatchVel], 
+                          Loc.T("MatchVel_Tooltip", "Continuously match orbital velocity with the target"), GUILayout.ExpandWidth(true)))
                     CFG.AP1.XToggle(Autopilot1.MatchVel);
-                if(Utils.ButtonSwitch("Brake Near Target", CFG.AP1[Autopilot1.MatchVelNear], 
-                          "Match orbital velocity with the target at closest approach", GUILayout.ExpandWidth(true)))
+                if(Utils.ButtonSwitch(Loc.T("MatchVel_BrakeNear", "Brake Near Target"), CFG.AP1[Autopilot1.MatchVelNear], 
+                          Loc.T("MatchVel_BrakeNear_Tooltip", "Match orbital velocity with the target at closest approach"), GUILayout.ExpandWidth(true)))
                     CFG.AP1.XToggle(Autopilot1.MatchVelNear);
             }
             else
             {
-                GUILayout.Label(new GUIContent("Match Velocity", "Continuously match orbital velocity with the target"), 
+                GUILayout.Label(Loc.Content("MatchVel_Button", "Match Velocity", "MatchVel_Tooltip", "Continuously match orbital velocity with the target"), 
                     Styles.inactive_button, GUILayout.ExpandWidth(true));
-                GUILayout.Label(new GUIContent("Brake Near Target", "Match orbital velocity with the target at closest approach"), 
+                GUILayout.Label(Loc.Content("MatchVel_BrakeNear", "Brake Near Target", "MatchVel_BrakeNear_Tooltip", "Match orbital velocity with the target at closest approach"), 
                     Styles.inactive_button, GUILayout.ExpandWidth(true));
             }
         }

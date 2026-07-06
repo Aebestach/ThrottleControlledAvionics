@@ -17,7 +17,7 @@ namespace ThrottleControlledAvionics
                    Description = "A block of Actions that gets executed when a condition is met")]
     public class TriggeredBlockMacroNode : SingleBlockConditionMacroNode
     {
-        public TriggeredBlockMacroNode() { Keyword = "WHEN"; }
+        public TriggeredBlockMacroNode() { Keyword = Loc.T("Macro_WHEN", "WHEN"); }
 
         protected override bool Action(VesselWrapper VSL)
         {
@@ -96,7 +96,7 @@ namespace ThrottleControlledAvionics
             IfBlock.Draw();
             if(Edit || ElseBlock.HasSubnodes)
             {
-                GUILayout.Label("ELSE", Styles.label, GUILayout.ExpandWidth(false));
+                GUILayout.Label(Loc.T("Macro_ELSE", "ELSE"), Styles.label, GUILayout.ExpandWidth(false));
                 ElseBlock.Draw();
             }
             GUILayout.EndVertical();
@@ -106,7 +106,7 @@ namespace ThrottleControlledAvionics
     [ComponentInfo(Description = "A loop that executes a block of Actions time after time while a condition is met")]
     public class WhileMacroNode : SingleBlockConditionMacroNode
     {
-        public WhileMacroNode() { Keyword = "WHILE"; }
+        public WhileMacroNode() { Keyword = Loc.T("Macro_WHILE", "WHILE"); }
 
         protected override bool Action(VesselWrapper VSL)
         {
@@ -138,10 +138,10 @@ namespace ThrottleControlledAvionics
         {
             GUILayout.BeginVertical();
             GUILayout.BeginHorizontal();
-            GUILayout.Label("REPEAT", Styles.label, GUILayout.ExpandWidth(false));
+            GUILayout.Label(Loc.T("Macro_REPEAT", "REPEAT"), Styles.label, GUILayout.ExpandWidth(false));
             Count = Utils.IntSelector(Count, 1);
             GUILayout.FlexibleSpace();
-            if(GUILayout.Button("Edit Block", Edit? Styles.active_button : Styles.normal_button, GUILayout.ExpandWidth(false)))
+            if(GUILayout.Button(Loc.T("Macro_EditBlock", "Edit Block"), Edit? Styles.active_button : Styles.normal_button, GUILayout.ExpandWidth(false)))
                 Edit = !Edit;
             GUILayout.EndHorizontal();
             Block.Draw();

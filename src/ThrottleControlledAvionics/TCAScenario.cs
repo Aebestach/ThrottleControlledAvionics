@@ -63,7 +63,7 @@ namespace ThrottleControlledAvionics
         public static bool ModuleInstalled { get; private set; }
         public static bool HavePersistentRotation { get; private set; }
         public static string ModuleStatusString()
-        { return HasTCA ? Colors.Good.Tag("<b>Software Installed</b>") : Colors.Danger.Tag("Unavailable"); }
+        { return HasTCA ? Colors.Good.Tag(Loc.T("ModuleStatus_SoftwareInstalled", "<b>Software Installed</b>")) : Colors.Danger.Tag(Loc.T("ModuleStatus_Unavailable", "Unavailable")); }
         #endregion
 
         #region Runtime Interface

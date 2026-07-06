@@ -92,7 +92,7 @@ namespace ThrottleControlledAvionics
             update_node_deltaV();
             if(VSL.Engines.MaxDeltaV < Node.DeltaV.magnitude)
                 Status(Colors.Warning,
-                    "WARNING: there may be not enough propellant for the maneuver");
+                    Loc.T("Maneuver_NotEnoughFuel", "WARNING: there may be not enough propellant for the maneuver"));
             return true;
         }
 
@@ -142,7 +142,7 @@ namespace ThrottleControlledAvionics
                     if(!TCAScenario.HavePatchedConics)
                     {
                         Status(Colors.Warning,
-                            "WARNING: maneuver nodes are not yet available. Upgrade the Tracking Station.");
+                            Loc.T("Orbit_NoManeuverNodes", "WARNING: maneuver nodes are not yet available. Upgrade the Tracking Station."));
                         CFG.AP1.Off();
                         return;
                     }
@@ -236,13 +236,13 @@ namespace ThrottleControlledAvionics
                 if(Solver.maneuverNodes.Count <= 0
                    || Node != Solver.maneuverNodes[0])
                 {
-                    Message("Maneuver node was changed.");
+                    Message(Loc.T("Maneuver_NodeChanged", "Maneuver node was changed."));
                     return false;
                 }
                 // ReSharper disable once InvertIf
                 if(NodeCB != Node.patch.referenceBody)
                 {
-                    Message("Maneuver node changed SoI.");
+                    Message(Loc.T("Maneuver_NodeSoI", "Maneuver node changed SoI."));
                     return false;
                 }
             }
@@ -258,7 +258,7 @@ namespace ThrottleControlledAvionics
             }
             if(!VSL.Engines.HaveThrusters && !VSL.Engines.HaveNextStageEngines)
             {
-                Message("Out of fuel");
+                Message(Loc.T("Maneuver_OutOfFuel", "Out of fuel"));
                 Disable();
                 return;
             }

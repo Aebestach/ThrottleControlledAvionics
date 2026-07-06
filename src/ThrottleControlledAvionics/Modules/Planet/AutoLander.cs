@@ -358,7 +358,7 @@ namespace ThrottleControlledAvionics
             if(WideCheckAlt > C.MaxWideCheckAltitude)
             {
                 CFG.AP1.Off();
-                Status(Colors.Danger, "Unable to find suitale place for landing.");
+                Status(Colors.Danger, Loc.T("Lander_NoSuitablePlace", "Unable to find suitale place for landing."));
             }
             else stage = Stage.WideCheck;
         }
@@ -418,11 +418,11 @@ namespace ThrottleControlledAvionics
             {
             case Stage.None:
                 CFG.VF.OnIfNot(VFlight.AltitudeControl);
-                Status("Preparing for the landing sequence...");
+                Status(Loc.T("Lander_PreparingSequence", "Preparing for the landing sequence..."));
                 if(stopped) stage = Stage.PointCheck;
                 break;
             case Stage.PointCheck:
-                Status("Checking the surface underneath the ship...");
+                Status(Loc.T("Lander_CheckingSurface", "Checking the surface underneath the ship..."));
                 if(!stopped) break;
                 if(scan(1, StartNode, VSL.Geometry.D)) break;
                 if(center_node == null) { wide_check(); break; }
@@ -431,7 +431,7 @@ namespace ThrottleControlledAvionics
                 else land(center_node);
                 break;
             case Stage.FlatCheck:
-                Status("Checking potential landing sites...");
+                Status(Loc.T("Lander_CheckingSites", "Checking potential landing sites..."));
                 if(!stopped) break;
                 if(FlatNodes.Count > 0)
                 {
@@ -448,14 +448,14 @@ namespace ThrottleControlledAvionics
                 //FIXME: the first wide check sometimes causes uncontrolled ascent
                 if(!fully_stopped)
                 {
-                    Status("Preparing for surface scanning...");
+                    Status(Loc.T("Lander_PreparingScan", "Preparing for surface scanning..."));
                     break;
                 }
                 if(scan(C.WideCheckLevel))
                 {
-                    Status("Scanning for {0} surface to land: {1}",
+                    Status(Loc.F("Lander_ScanningSurface", "Scanning for {0} surface to land: {1}",
                            Colors.Active.Tag("<b>flat</b>"),
-                           Colors.Good.Tag(Progress.ToString("P1")));
+                           Colors.Good.Tag(Progress.ToString("P1"))));
                     break;
                 }
                 FlattestNode = flattest_node;
@@ -465,8 +465,8 @@ namespace ThrottleControlledAvionics
                     search_for_next();
                 break;
             case Stage.MoveNext:
-                if(NextNode.flat) Status("Moving to a potential landing site...");
-                else Status("Searching for a landing site...");
+                if(NextNode.flat) Status(Loc.T("Lander_MovingToSite", "Moving to a potential landing site..."));
+                else Status(Loc.T("Lander_SearchingSite", "Searching for a landing site..."));
                 if(!moved_to_next_node) break;
                 WideCheckAlt = VSL.Altitude.Relative;
                 if(NextNode.flat)
@@ -478,8 +478,8 @@ namespace ThrottleControlledAvionics
                 break;
             case Stage.Land:
                 CFG.VTOLAssistON = true;
-                if(CFG.AutoGear) Status(Colors.Good, "Landing...");
-                else Status(Colors.Warning, "Landing. Autodeployment of landing gear is disabled.");
+                if(CFG.AutoGear) Status(Colors.Good, Loc.T("Lander_Landing", "Landing..."));
+                else Status(Colors.Warning, Loc.T("Lander_LandingNoGear", "Landing. Autodeployment of landing gear is disabled."));
                 if(WideCheckAlt > 0)
                 {
                     CFG.Nav.OnIfNot(Navigation.Anchor);

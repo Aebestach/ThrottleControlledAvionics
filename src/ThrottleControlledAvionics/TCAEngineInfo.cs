@@ -44,6 +44,30 @@ namespace ThrottleControlledAvionics
                 { ManeuverMode.TRANSLATION, "Translation" }
             };
 
+        public static string RoleLabel(TCARole role)
+        {
+            switch(role)
+            {
+            case TCARole.MAIN:      return Loc.T("EngineRole_Main", Roles[role]);
+            case TCARole.BALANCE:   return Loc.T("EngineRole_Balance", Roles[role]);
+            case TCARole.MANEUVER:  return Loc.T("EngineRole_Maneuver", Roles[role]);
+            case TCARole.UNBALANCE: return Loc.T("EngineRole_Unbalance", Roles[role]);
+            case TCARole.MANUAL:    return Loc.T("EngineRole_Manual", Roles[role]);
+            default:                return Roles[role];
+            }
+        }
+
+        public static string ModeLabel(ManeuverMode mode)
+        {
+            switch(mode)
+            {
+            case ManeuverMode.ALL:         return Loc.T("EngineMode_All", Modes[mode]);
+            case ManeuverMode.TORQUE:      return Loc.T("EngineMode_Torque", Modes[mode]);
+            case ManeuverMode.TRANSLATION: return Loc.T("EngineMode_Translation", Modes[mode]);
+            default:                       return Modes[mode];
+            }
+        }
+
         [KSPField(isPersistant = true)] public TCARole Role = TCARole.MAIN;
 
         [KSPField(isPersistant = true)] public ManeuverMode Mode = ManeuverMode.ALL;
@@ -52,9 +76,9 @@ namespace ThrottleControlledAvionics
         [KSPField(isPersistant = true,
             guiActive = true,
             guiActiveEditor = true,
-            guiName = "Engine Group:",
+            guiName = "#LOC_TCA_EngineGroup",
             groupName = "TCAEngineInfo",
-            groupDisplayName = "TCA")]
+            groupDisplayName = "#LOC_TCA_TCA")]
         public int group;
 
         public override void OnLoad(ConfigNode node)
@@ -72,7 +96,7 @@ namespace ThrottleControlledAvionics
             if(chooser == null)
                 return;
             chooser.options = new string[Globals.Instance.MaxManualGroups];
-            chooser.options[0] = "OFF";
+            chooser.options[0] = Loc.T("EngineGroup_Off", "OFF");
             for(var i = 1; i < Globals.Instance.MaxManualGroups; i++)
                 chooser.options[i] = $"G{i:D}";
         }
@@ -111,16 +135,16 @@ namespace ThrottleControlledAvionics
 
         [KSPEvent(guiActive = true,
             guiActiveEditor = true,
-            guiName = "TCA Role",
+            guiName = "#LOC_TCA_TCA_Role",
             groupName = "TCAEngineInfo",
-            groupDisplayName = "TCA",
+            groupDisplayName = "#LOC_TCA_TCA",
             active = true)]
         public void SwitchRole()
         {
             if(!HighLogic.LoadedSceneIsEditor && group > 0)
             {
-                Utils.Message("Cannot change the role of an engine belonging to a group.\n"
-                              + "Use in-flight group controls instead.");
+                Utils.Message(Loc.T("EngineRole_GroupLocked", "Cannot change the role of an engine belonging to a group.\n"
+                              + "Use in-flight group controls instead."));
                 return;
             }
             Role = Roles.Next(Role);
@@ -130,16 +154,16 @@ namespace ThrottleControlledAvionics
 
         [KSPEvent(guiActive = true,
             guiActiveEditor = true,
-            guiName = "TCA Maneuver Mode",
+            guiName = "#LOC_TCA_TCA_ManeuverMode",
             groupName = "TCAEngineInfo",
-            groupDisplayName = "TCA",
+            groupDisplayName = "#LOC_TCA_TCA",
             active = false)]
         public void SwitchMode()
         {
             if(!HighLogic.LoadedSceneIsEditor && group > 0)
             {
-                Utils.Message("Cannot change the mode of an engine belonging to a group.\n"
-                              + "Use in-flight group controls instead.");
+                Utils.Message(Loc.T("EngineMode_GroupLocked", "Cannot change the mode of an engine belonging to a group.\n"
+                              + "Use in-flight group controls instead."));
                 return;
             }
             Mode = Modes.Next(Mode);
@@ -164,9 +188,9 @@ namespace ThrottleControlledAvionics
 
         private void update_events()
         {
-            Events[nameof(SwitchRole)].guiName = $"Role: {Roles[Role]}";
+            Events[nameof(SwitchRole)].guiName = Loc.F("EngineRole_Event", "Role: <<1>>", RoleLabel(Role));
             var modeEvent = Events[nameof(SwitchMode)];
-            modeEvent.guiName = $"Mode: {Modes[Mode]}";
+            modeEvent.guiName = Loc.F("EngineMode_Event", "Mode: <<1>>", ModeLabel(Mode));
             var enableModeEvent = Role == TCARole.MANEUVER;
             if(modeEvent.active != enableModeEvent)
             {

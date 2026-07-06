@@ -36,17 +36,17 @@ namespace ThrottleControlledAvionics
         public HashSet<Vector3d> CustomMarkersVec = new HashSet<Vector3d>();
         public HashSet<WayPoint> CustomMarkersWP  = new HashSet<WayPoint>();
 
-        public void AddCustopWaypoint(Vector3d pos, string name = "Custom WayPoint")
+        public void AddCustopWaypoint(Vector3d pos, string name = null)
         {
             var wp = new WayPoint(pos, VSL.vessel.mainBody);
-            wp.Name = name;
+            wp.Name = name ?? Loc.T("Info_CustomWaypoint", "Custom WayPoint");
             CustomMarkersWP.Add(wp);
         }
 
-        public void AddCustopWaypoint(Coordinates pos, string name = "Custom WayPoint")
+        public void AddCustopWaypoint(Coordinates pos, string name = null)
         {
             var wp = new WayPoint(pos);
-            wp.Name = name;
+            wp.Name = name ?? Loc.T("Info_CustomWaypoint", "Custom WayPoint");
             CustomMarkersWP.Add(wp);
         }
 
@@ -65,12 +65,12 @@ namespace ThrottleControlledAvionics
         {
             GUILayout.Label(new GUIContent(VSL.Info.Countdown >= 0? 
                                            string.Format("{0:F1}s", VSL.Info.Countdown) : "", 
-                                           "Countdown" ),
+                                           Loc.T("Info_Countdown", "Countdown") ),
                             VSL.Info.Countdown > 10? Styles.white : Styles.danger, 
                             GUILayout.Width(90));
             GUILayout.Label(new GUIContent(VSL.Info.TTB >= 0 && VSL.Info.TTB < float.MaxValue? 
                                            string.Format("{0:F1}s", VSL.Info.TTB) : "",
-                                           "Thrust Duration"), 
+                                           Loc.T("Info_ThrustDuration", "Thrust Duration")), 
                             Styles.active, GUILayout.Width(90));
         }
     }

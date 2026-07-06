@@ -13,45 +13,51 @@ namespace ThrottleControlledAvionics
 {
     public class AttitudePanel : ControlPanel<AttitudeUI>
     {
-        private static readonly Dictionary<Attitude, string> cues_long = new Dictionary<Attitude, string>
+        private static string CueLong(Attitude att)
         {
-            { Attitude.None, "" },
-            { Attitude.KillRotation, "Kill Rotation" },
-            { Attitude.HoldAttitude, "Hold Attitude" },
-            { Attitude.ManeuverNode, "Maneuver Node" },
-            { Attitude.Prograde, "Prograde" },
-            { Attitude.Retrograde, "Retrograde" },
-            { Attitude.Radial, "Radial" },
-            { Attitude.AntiRadial, "Anti Radial" },
-            { Attitude.Normal, "Normal" },
-            { Attitude.AntiNormal, "Anti Normal" },
-            { Attitude.Target, "To Target" },
-            { Attitude.AntiTarget, "From Target" },
-            { Attitude.RelVel, "Relative Velocity" },
-            { Attitude.AntiRelVel, "Against Relative Velocity" },
-            { Attitude.TargetCorrected, "To Target, correcting lateral velocity" },
-            { Attitude.Custom, "Attitude is controlled by autopilot" },
-        };
+            switch(att)
+            {
+            case Attitude.KillRotation: return Loc.T("AttitudeKillRotation", "Kill Rotation");
+            case Attitude.HoldAttitude: return Loc.T("AttitudeHoldAttitude", "Hold Attitude");
+            case Attitude.ManeuverNode: return Loc.T("AttitudeManeuverNode", "Maneuver Node");
+            case Attitude.Prograde: return Loc.T("AttitudePrograde", "Prograde");
+            case Attitude.Retrograde: return Loc.T("AttitudeRetrograde", "Retrograde");
+            case Attitude.Radial: return Loc.T("AttitudeRadial", "Radial");
+            case Attitude.AntiRadial: return Loc.T("AttitudeAntiRadial", "Anti Radial");
+            case Attitude.Normal: return Loc.T("AttitudeNormal", "Normal");
+            case Attitude.AntiNormal: return Loc.T("AttitudeAntiNormal", "Anti Normal");
+            case Attitude.Target: return Loc.T("AttitudeTarget", "To Target");
+            case Attitude.AntiTarget: return Loc.T("AttitudeAntiTarget", "From Target");
+            case Attitude.RelVel: return Loc.T("AttitudeRelVel", "Relative Velocity");
+            case Attitude.AntiRelVel: return Loc.T("AttitudeAntiRelVel", "Against Relative Velocity");
+            case Attitude.TargetCorrected: return Loc.T("AttitudeTargetCorrected", "To Target, correcting lateral velocity");
+            case Attitude.Custom: return Loc.T("AttitudeCustom", "Attitude is controlled by autopilot");
+            default: return "";
+            }
+        }
 
-        private static readonly Dictionary<Attitude, string> cues_short = new Dictionary<Attitude, string>
+        private static string CueShort(Attitude att)
         {
-            { Attitude.None, "" },
-            { Attitude.KillRotation, "Kill" },
-            { Attitude.HoldAttitude, "Hold" },
-            { Attitude.ManeuverNode, "Maneuver" },
-            { Attitude.Prograde, "PG" },
-            { Attitude.Retrograde, "RG" },
-            { Attitude.Radial, "R+" },
-            { Attitude.AntiRadial, "R-" },
-            { Attitude.Normal, "N+" },
-            { Attitude.AntiNormal, "N-" },
-            { Attitude.Target, "T+" },
-            { Attitude.AntiTarget, "T-" },
-            { Attitude.RelVel, "rV+" },
-            { Attitude.AntiRelVel, "rV-" },
-            { Attitude.TargetCorrected, "T+ rV-" },
-            { Attitude.Custom, "Auto" },
-        };
+            switch(att)
+            {
+            case Attitude.KillRotation: return Loc.T("AttitudeKillShort", "Kill");
+            case Attitude.HoldAttitude: return Loc.T("AttitudeHoldShort", "Hold");
+            case Attitude.ManeuverNode: return Loc.T("AttitudeManeuverShort", "Maneuver");
+            case Attitude.Prograde: return Loc.T("AttitudeProgradeShort", "PG");
+            case Attitude.Retrograde: return Loc.T("AttitudeRetrogradeShort", "RG");
+            case Attitude.Radial: return Loc.T("AttitudeRadialShort", "R+");
+            case Attitude.AntiRadial: return Loc.T("AttitudeAntiRadialShort", "R-");
+            case Attitude.Normal: return Loc.T("AttitudeNormalShort", "N+");
+            case Attitude.AntiNormal: return Loc.T("AttitudeAntiNormalShort", "N-");
+            case Attitude.Target: return Loc.T("AttitudeTargetShort", "T+");
+            case Attitude.AntiTarget: return Loc.T("AttitudeAntiTargetShort", "T-");
+            case Attitude.RelVel: return Loc.T("AttitudeRelVelShort", "rV+");
+            case Attitude.AntiRelVel: return Loc.T("AttitudeAntiRelVelShort", "rV-");
+            case Attitude.TargetCorrected: return Loc.T("AttitudeTargetCorrectedShort", "T+ rV-");
+            case Attitude.Custom: return Loc.T("AttitudeCustomShort", "Auto");
+            default: return "";
+            }
+        }
 
         private AttitudeControl ATC;
 
@@ -100,13 +106,13 @@ namespace ThrottleControlledAvionics
             {
                 Controller.CurrentCue.SetActive(true);
                 Controller.CurrentCue.AttitudeError.text = VSL.AutopilotDisabled
-                    ? "USER"
-                    : $"Err: {VSL.Controls.AttitudeError:F1}°";
+                    ? Loc.T("AttitudeUser", "USER")
+                    : Loc.F("AttitudeError", "Err: <<1>>°", VSL.Controls.AttitudeError.ToString("F1"));
                 Controller.CurrentCue.AttitudeError.color = VSL.Controls.Aligned
                     ? Colors.Enabled
                     : Colors.Neutral;
-                Controller.CurrentCue.CurrentCueText.text = cues_short[CFG.AT.state];
-                Controller.CurrentCue.CurrentCueTooltip.text = $"{cues_long[CFG.AT.state]}. Click to disable.";
+                Controller.CurrentCue.CurrentCueText.text = CueShort(CFG.AT.state);
+                Controller.CurrentCue.CurrentCueTooltip.text = Loc.F("AttitudeCueTooltip", "<<1>>. Click to disable.", CueLong(CFG.AT.state));
             }
             else
                 Controller.CurrentCue.SetActive(false);

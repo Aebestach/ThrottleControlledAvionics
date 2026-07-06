@@ -77,19 +77,19 @@ namespace ThrottleControlledAvionics
         #endregion
 
         #region ControlTabs
-        [TabInfo("Navigation", 1, Icon = "ThrottleControlledAvionics/Icons/NavigationTab.png")]
+        [TabInfo("#LOC_TCA_Tab_Navigation", 1, Icon = "ThrottleControlledAvionics/Icons/NavigationTab.png")]
         public NavigationTab NAV;
 
-        [TabInfo("Orbital Autopilots", 2, Icon = "ThrottleControlledAvionics/Icons/OrbitalTab.png")]
+        [TabInfo("#LOC_TCA_Tab_OrbitalAutopilots", 2, Icon = "ThrottleControlledAvionics/Icons/OrbitalTab.png")]
         public OrbitalTab ORB;
 
-        [TabInfo("Engines Control", 3, Icon = "ThrottleControlledAvionics/Icons/EnginesTab.png")]
+        [TabInfo("#LOC_TCA_Tab_EnginesControl", 3, Icon = "ThrottleControlledAvionics/Icons/EnginesTab.png")]
         public EnginesTab ENG;
 
-        [TabInfo("Advanced Settings", 4, Icon = "ThrottleControlledAvionics/Icons/AdvancedTab.png")]
+        [TabInfo("#LOC_TCA_Tab_AdvancedSettings", 4, Icon = "ThrottleControlledAvionics/Icons/AdvancedTab.png")]
         public AdvancedTab ADV;
 
-        [TabInfo("Macros", 5, Icon = "ThrottleControlledAvionics/Icons/MacrosTab.png")]
+        [TabInfo("#LOC_TCA_Tab_Macros", 5, Icon = "ThrottleControlledAvionics/Icons/MacrosTab.png")]
         public MacrosTab MCR;
 
         public ControlTab ActiveTab = null;
@@ -267,18 +267,18 @@ namespace ThrottleControlledAvionics
              collapsed_rect = new Rect(WindowPos.x, WindowPos.y, 40, 23);
         }
 
-        static GUIContent collapse_button = new GUIContent("▲", "Collapse Main Window");
-        static GUIContent uncollapse_button = new GUIContent("▼", "Restore Main Window");
-        static GUIContent prev_vessel_button = new GUIContent("◀", "Switch to previous vessel");
-        static GUIContent next_vessel_button = new GUIContent("▶", "Switch to next vessel");
-        static GUIContent active_vessel_button = new GUIContent("◇", "Back to active vessel");
-        static GUIContent switch_vessel_button = new GUIContent("◆", "Switch to current vessel");
-        static GUIContent help_button = new GUIContent("?", "TCA Manual");
+        static GUIContent CollapseButton => Loc.Content("CollapseButton", "▲", "CollapseButtonTip", "Collapse Main Window");
+        static GUIContent UncollapseButton => Loc.Content("UncollapseButton", "▼", "UncollapseButtonTip", "Restore Main Window");
+        static GUIContent PrevVesselButton => Loc.Content("PrevVesselButton", "◀", "PrevVesselButtonTip", "Switch to previous vessel");
+        static GUIContent NextVesselButton => Loc.Content("NextVesselButton", "▶", "NextVesselButtonTip", "Switch to next vessel");
+        static GUIContent ActiveVesselButton => Loc.Content("ActiveVesselButton", "◇", "ActiveVesselButtonTip", "Back to active vessel");
+        static GUIContent SwitchVesselButton => Loc.Content("SwitchVesselButton", "◆", "SwitchVesselButtonTip", "Switch to current vessel");
+        static GUIContent HelpButton => Loc.Content("HelpButton", "?", "HelpButtonTip", "TCA Manual");
         void DrawMainWindow(int windowID)
         {
             //help button
             if(GUI.Button(new Rect(0, 0f, 20f, 18f), 
-                          Collapsed? uncollapse_button : collapse_button, Styles.label)) 
+                          Collapsed? UncollapseButton : CollapseButton, Styles.label)) 
             {
                 Collapsed = !Collapsed;
                 draw_main_window = Collapsed;
@@ -290,20 +290,20 @@ namespace ThrottleControlledAvionics
                 }
             }
             if(GUI.Button(new Rect(WindowPos.width - 20f, 0f, 20f, 18f), 
-                          help_button, Styles.label)) 
+                          HelpButton, Styles.label)) 
                 TCAManual.ToggleInstance();
             //vessel switching
             if(HaveRemoteControl)
             {
-                if(GUI.Button(new Rect(22, 0f, 20f, 18f), prev_vessel_button, Styles.label)) 
+                if(GUI.Button(new Rect(22, 0f, 20f, 18f), PrevVesselButton, Styles.label)) 
                     switch_vessel(FlightGlobals.Vessels.Next);
                 if(RemoteControl && 
-                   GUI.Button(new Rect(44, 0f, 20f, 18f), active_vessel_button, Styles.label)) 
+                   GUI.Button(new Rect(44, 0f, 20f, 18f), ActiveVesselButton, Styles.label)) 
                     onVesselChange(ActiveVesselTCA.vessel);
                 if(RemoteControl &&
-                   GUI.Button(new Rect(WindowPos.width - 64f, 0f, 20f, 18f), switch_vessel_button, Styles.label))
+                   GUI.Button(new Rect(WindowPos.width - 64f, 0f, 20f, 18f), SwitchVesselButton, Styles.label))
                     FlightGlobals.SetActiveVessel(vessel);
-                if(GUI.Button(new Rect(WindowPos.width - 42f, 0f, 20f, 18f), next_vessel_button, Styles.label))
+                if(GUI.Button(new Rect(WindowPos.width - 42f, 0f, 20f, 18f), NextVesselButton, Styles.label))
                     switch_vessel(FlightGlobals.Vessels.Prev);
             }
             if(TCA.IsControllable)
@@ -315,7 +315,7 @@ namespace ThrottleControlledAvionics
                 if(CFG.Enabled) enabled_style = Styles.enabled_button;
                 else if(!VSL.LandedOrSplashed && EnabledBlinker.On) 
                     enabled_style = Styles.danger_button;
-                if(GUILayout.Button("Enabled", enabled_style, GUILayout.Width(70)))
+                if(GUILayout.Button(Loc.T("Enabled", "Enabled"), enabled_style, GUILayout.Width(70)))
                     TCA.ToggleTCA();
                 #if DEBUG
                 if(GUILayout.Button("ReGlobals", Styles.active_button, GUILayout.ExpandWidth(false))) 
@@ -354,7 +354,7 @@ namespace ThrottleControlledAvionics
                 VSL.Info.Draw();
                 GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
-                GUILayout.Label("Vessel is Uncontrollable", Styles.label, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
+                GUILayout.Label(Loc.T("VesselUncontrollable", "Vessel is Uncontrollable"), Styles.label, GUILayout.ExpandWidth(true), GUILayout.ExpandHeight(true));
                 GUILayout.EndVertical();
             }
             TooltipsAndDragWindow();
@@ -373,7 +373,7 @@ namespace ThrottleControlledAvionics
                     GUILayout.Window(TCA.GetInstanceID(), 
                         WindowPos, 
                         DrawMainWindow, 
-                        RemoteControl? "RC: "+vessel.vesselName : vessel.vesselName,
+                        RemoteControl? Loc.F("RemoteControlTitle", "RC: <<1>>", vessel.vesselName) : vessel.vesselName,
                         GUILayout.Width(ControlsWidth),
                         GUILayout.Height(50)).clampToScreen();
                 update_collapsed_rect();
@@ -412,7 +412,7 @@ namespace ThrottleControlledAvionics
                 {
                     UnlockControls();
                     draw_main_window = false;
-                    GUI.Label(collapsed_rect, new GUIContent("TCA", "Push to show Main Window"), 
+                    GUI.Label(collapsed_rect, Loc.Content("TCA", "TCA", "TCACollapsedTip", "Push to show Main Window"), 
                           CFG.Enabled? Styles.enabled : (VSL.LandedOrSplashed? Styles.white : Styles.danger));
                     if(Input.GetMouseButton(0) && collapsed_rect.Contains(Event.current.mousePosition))
                     {
@@ -431,11 +431,11 @@ namespace ThrottleControlledAvionics
                 if(RemoteControl)
                     Markers.DrawWorldMarker(TCA.vessel.transform.position,
                         Colors.Good,
-                        "Remotely Controlled Vessel",
+                        Loc.T("RemotelyControlledVessel", "Remotely Controlled Vessel"),
                         NavigationTab.PathNodeMarker,
                         8);
                 if(ShowCoM)
-                    Markers.DrawWorldMarker(TCA.vessel.CurrentCoM, Colors.Active, "Center of Mass", CoM_Icon);
+                    Markers.DrawWorldMarker(TCA.vessel.CurrentCoM, Colors.Active, Loc.T("CenterOfMass", "Center of Mass"), CoM_Icon);
             }
         }
 
@@ -472,7 +472,7 @@ namespace ThrottleControlledAvionics
         {
             base.LateUpdate();
             if(TCA != null && VSL != null && !CFG.Enabled && !VSL.LandedOrSplashed)
-                Status(0.1, Colors.Danger, "<b>TCA is disabled</b>");
+                Status(0.1, Colors.Danger, Loc.T("TCADisabled", "<b>TCA is disabled</b>"));
             else if(StatusEndTime > DateTime.MinValue
                && DateTime.Now > StatusEndTime)
                 ClearStatus();
