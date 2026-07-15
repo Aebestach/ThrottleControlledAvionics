@@ -33,7 +33,7 @@ namespace ThrottleControlledAvionics
     public enum ControlMode { None, VTOL }
     public enum HFlight { None, Stop, Move, Level, NoseOnCourse, CruiseControl }
     public enum VFlight { None, AltitudeControl }
-    public enum Navigation { None, GoToTarget, FollowTarget, FollowPath, Anchor, AnchorHere }
+    public enum Navigation { None, GoToTarget, FollowTarget, FollowPath, Anchor, AnchorHere, HoverDocking }
     public enum Autopilot1 { None, Land, Maneuver, MatchVel, MatchVelNear }
     public enum Autopilot2 { None, Deorbit, BallisticJump, Rendezvous, ToOrbit }
 

@@ -63,6 +63,20 @@ namespace ThrottleControlledAvionics
 
         public void Draw()
         {
+            if(!VSL.Controls.PhysicsReady)
+            {
+                if(VSL.Controls.PhysicsReadyCountdown > 0)
+                    GUILayout.Label(new GUIContent(
+                        string.Format(Loc.T("PhysicsReady_Cooldown", "Physics cooldown: {0:F1}s"),
+                                      VSL.Controls.PhysicsReadyCountdown),
+                        Loc.T("PhysicsReady_CooldownTip", "Waiting for physics to settle after time warp")),
+                        Styles.danger, GUILayout.Width(180));
+                else
+                    GUILayout.Label(new GUIContent(
+                        Loc.T("PhysicsReady_WaitWarp", "Waiting for time warp to end..."),
+                        Loc.T("PhysicsReady_WaitWarpTip", "TCA is waiting for time warp to return to 1x")),
+                        Styles.danger, GUILayout.Width(180));
+            }
             GUILayout.Label(new GUIContent(VSL.Info.Countdown >= 0? 
                                            string.Format("{0:F1}s", VSL.Info.Countdown) : "", 
                                            Loc.T("Info_Countdown", "Countdown") ),

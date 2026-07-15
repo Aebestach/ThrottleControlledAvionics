@@ -18,6 +18,7 @@ namespace ThrottleControlledAvionics
         public float Current { get; private set; }
         public float Absolute { get; private set; }
         public float Relative { get; private set; }
+        public float BottomRelative { get; private set; }
         public float PrevRelative { get; private set; }
         public float TerrainAltitude { get; private set; }
         public bool  AboveGround { get; private set; }
@@ -42,10 +43,13 @@ namespace ThrottleControlledAvionics
             Absolute = (float)vessel.altitude;
             TerrainAltitude = (float)((vessel.mainBody.ocean && vessel.terrainAltitude < 0)? 0 : vessel.terrainAltitude);
             Relative = Utils.ClampL(vessel.heightFromTerrain, 0);
+            BottomRelative = VSL.Geometry.HavePhysicalBottom
+                ? Utils.ClampL(Absolute - TerrainAltitude - VSL.Geometry.BottomH, 0)
+                : Relative;
             Current = CFG.AltitudeAboveTerrain? Relative : Absolute;
             AboveGround = 
-                CFG.AltitudeAboveTerrain && CFG.DesiredAltitude >= VSL.Geometry.H ||
-                !CFG.AltitudeAboveTerrain && CFG.DesiredAltitude >= TerrainAltitude+VSL.Geometry.H; 
+                CFG.AltitudeAboveTerrain && CFG.DesiredAltitude >= VSL.Geometry.BottomH ||
+                !CFG.AltitudeAboveTerrain && CFG.DesiredAltitude >= TerrainAltitude+VSL.Geometry.BottomH; 
         }
     }
 }

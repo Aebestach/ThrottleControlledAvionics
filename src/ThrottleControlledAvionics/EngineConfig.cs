@@ -495,18 +495,22 @@ namespace ThrottleControlledAvionics
         public void DrawManual()
         {
             GUILayout.BeginVertical();
+            var drew = false;
             foreach(var k in Groups.Keys)
             {
                 var c = Groups[k];
                 if(c.Role != TCARole.MANUAL) continue;
                 Changed |= c.Draw(string.Format(" (G{0})", k), false);
+                drew = true;
             }
             foreach(var k in Single.Keys)
             {
                 var c = Single[k];
                 if(c.Role != TCARole.MANUAL) continue;
                 Changed |= c.Draw(with_role:false);
+                drew = true;
             }
+            if(!drew) Utils.EnsureLayoutControl();
             GUILayout.EndVertical();
         }
     }
@@ -627,29 +631,33 @@ namespace ThrottleControlledAvionics
 
         public void Draw(int height)
         {
-            if(DB.Count == 0) return;
             GUILayout.BeginVertical();
-            enginesScroll = GUILayout.BeginScrollView(enginesScroll, GUILayout.Height(height));
-            GUILayout.BeginVertical();
-            var num_profs = DB.Count ;
-            var del = new List<EnginesProfile>(num_profs);
-            for(int i = 0; i < num_profs; i++)
+            if(DB.Count > 0)
             {
-                var p = DB[i];
-                if(!p.Draw() && p != Default)
+                enginesScroll = GUILayout.BeginScrollView(enginesScroll, GUILayout.Height(height));
+                GUILayout.BeginVertical();
+                var num_profs = DB.Count ;
+                var del = new List<EnginesProfile>(num_profs);
+                for(int i = 0; i < num_profs; i++)
                 {
-                    del.Add(p);
-                    if(p == Active) Activate(Default);
-                    continue;
+                    var p = DB[i];
+                    if(!p.Draw() && p != Default)
+                    {
+                        del.Add(p);
+                        if(p == Active) Activate(Default);
+                        continue;
+                    }
+                    if(p.Active && p != Active)    Activate(p);
+                    if(p.Default && p != Default) SetDefault(p);
                 }
-                if(p.Active && p != Active)    Activate(p);
-                if(p.Default && p != Default) SetDefault(p);
+                if(del.Count > 0) foreach(var p in del) DB.Remove(p);
+                Utils.EnsureLayoutControl();
+                GUILayout.EndVertical();
+                GUILayout.EndScrollView();
+                if(GUILayout.Button(Loc.T("Profile_Add", "Add Profile"), Styles.open_button, GUILayout.ExpandWidth(true)))
+                    CopyActive();
             }
-            if(del.Count > 0) foreach(var p in del) DB.Remove(p);
-            GUILayout.EndVertical();
-            GUILayout.EndScrollView();
-            if(GUILayout.Button(Loc.T("Profile_Add", "Add Profile"), Styles.open_button, GUILayout.ExpandWidth(true)))
-                CopyActive();
+            else Utils.EnsureLayoutControl();
             GUILayout.EndVertical();
         }
 
@@ -659,6 +667,7 @@ namespace ThrottleControlledAvionics
             GUILayout.BeginVertical(Styles.white);
             manualScroll = GUILayout.BeginScrollView(manualScroll, GUILayout.Height(height));
             Active.DrawManual();
+            Utils.EnsureLayoutControl();
             GUILayout.EndScrollView();
             GUILayout.EndVertical();
         }

@@ -45,6 +45,7 @@ namespace ThrottleControlledAvionics
         public override void Disable() 
         { 
             Correction = Vector3.zero; 
+            ExemptTargets.Clear();
         }
 
         protected override void Resume()
@@ -61,6 +62,7 @@ namespace ThrottleControlledAvionics
 
         static int RadarMask;
         readonly HashSet<Guid> Dangerous = new HashSet<Guid>();
+        readonly Dictionary<TCAModule, Guid> ExemptTargets = new Dictionary<TCAModule, Guid>();
         List<Vector3d> Corrections = new List<Vector3d>();
         Vector3 Correction;
         IEnumerator scanner;
@@ -68,6 +70,35 @@ namespace ThrottleControlledAvionics
         readonly Timer ManeuverTimer = new Timer();
 
         public Vector3 CourseCorrection { get { return Correction.IsZero()? Correction : filter.Value; } }
+
+        public void SetExemptTarget(TCAModule module, Vessel vessel)
+        {
+            if(module == null)
+                return;
+            if(vessel == null)
+                ExemptTargets.Remove(module);
+            else ExemptTargets[module] = vessel.id;
+        }
+
+        bool target_exempt(Vessel vessel)
+        {
+            if(vessel == null || ExemptTargets.Count == 0)
+                return false;
+            var remove_stale = new List<TCAModule>();
+            var exempt = false;
+            foreach(var pair in ExemptTargets)
+            {
+                if(pair.Key == null || !pair.Key.IsActive)
+                {
+                    remove_stale.Add(pair.Key);
+                    continue;
+                }
+                exempt |= pair.Value == vessel.id;
+            }
+            for(int i = 0, count = remove_stale.Count; i < count; i++)
+                ExemptTargets.Remove(remove_stale[i]);
+            return exempt;
+        }
 
         public override void Init()
         {
@@ -272,6 +303,7 @@ namespace ThrottleControlledAvionics
                 catch { break; }
                 var v = vi.Current;
                 if(v == null || v.packed || !v.loaded || v == VSL.vessel) continue;
+                if(target_exempt(v)) continue;
                 if(v.isEVA) //ignore kerbals on our own ladders
                 {
                     var eva = v.GetComponent<KerbalEVA>();

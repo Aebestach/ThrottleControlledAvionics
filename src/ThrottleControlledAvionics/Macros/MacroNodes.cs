@@ -220,7 +220,7 @@ namespace ThrottleControlledAvionics
         }
     }
 
-    [RequireModules(typeof(PointNavigator))]
+    [RequireModules(typeof(FollowAutopilot))]
     [ComponentInfo(Description = "Follow current target")]
     public class FollowTargetMacroNode : MacroNode
     {
@@ -229,6 +229,18 @@ namespace ThrottleControlledAvionics
             if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
             VSL.CFG.Nav.XOn(Navigation.FollowTarget);
             return false;
+        }
+    }
+
+    [RequireModules(typeof(HoverDockingAutopilot))]
+    [ComponentInfo(Name = "Hover Docking", Description = "Hover near the current docking target and perform final approach.")]
+    public class HoverDockingMacroNode : MacroNode
+    {
+        protected override bool Action(VesselWrapper VSL)
+        {
+            if(!VSL.HasTarget) { Message("Macro_NoTarget", "No Target"); return false; }
+            VSL.CFG.Nav.XOnIfNot(Navigation.HoverDocking);
+            return VSL.CFG.Nav[Navigation.HoverDocking];
         }
     }
 
@@ -296,6 +308,12 @@ namespace ThrottleControlledAvionics
 
         public FlyMacroNode() { Name = Loc.T("Macro_Fly", "Fly") + ":"; Suffix = "m/s"; }
 
+        public override void CommitEdits()
+        {
+            Bearing.UpdateValue();
+            CommitValue();
+        }
+
         protected override void DrawThis()
         {
             GUILayout.BeginHorizontal();
@@ -308,9 +326,7 @@ namespace ThrottleControlledAvionics
                 if(mode != Mode.Off) Value.Draw(Suffix);
                 if(GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.ExpandWidth(false)))
                 { 
-                    Bearing.UpdateValue();
-                    Value.UpdateValue();
-                    OnValueChanged();
+                    CommitEdits();
                     Edit = false; 
                 }
             }

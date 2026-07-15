@@ -30,7 +30,9 @@ namespace ThrottleControlledAvionics
 
         NamedConfig selected_config;
         string config_name = string.Empty;
+        string selected_config_name = string.Empty;
         readonly DropDownList named_configs = new DropDownList();
+        const int NamedConfigChooserThreshold = 5;
 
         private readonly FloatField MinHorizontalAccel = new FloatField(min:0);
 
@@ -41,26 +43,73 @@ namespace ThrottleControlledAvionics
         }
 
         #region Configs Selector
+        void SyncSelectedConfig(string name)
+        {
+            if(string.IsNullOrEmpty(name) || !TCAScenario.NamedConfigs.ContainsKey(name))
+            {
+                selected_config = null;
+                selected_config_name = string.Empty;
+                return;
+            }
+            selected_config_name = name;
+            selected_config = TCAScenario.GetConfig(name);
+            config_name = name;
+        }
+
+        void EnsureSelectedConfigName()
+        {
+            if(!string.IsNullOrEmpty(selected_config_name) && TCAScenario.NamedConfigs.ContainsKey(selected_config_name))
+                return;
+            if(TCAScenario.NamedConfigs.Count == 0)
+            {
+                selected_config = null;
+                selected_config_name = string.Empty;
+                return;
+            }
+            SyncSelectedConfig(TCAScenario.NamedConfigs.Keys[0]);
+        }
+
         public void UpdateNamedConfigs()
         {
+            EnsureSelectedConfigName();
+            if(TCAScenario.NamedConfigs.Count <= NamedConfigChooserThreshold)
+                return;
             var configs = TCAScenario.NamedConfigs.Keys.ToList();
-            var first = named_configs.Items.Count == 0;
-            configs.Add(string.Empty); named_configs.Items = configs;
-            if(first) named_configs.SelectItem(configs.Count - 1);
+            configs.Add(string.Empty);
+            named_configs.Items = configs;
+            if(!string.IsNullOrEmpty(selected_config_name) && TCAScenario.NamedConfigs.ContainsKey(selected_config_name))
+                named_configs.SelectItem(TCAScenario.NamedConfigs.IndexOfKey(selected_config_name));
+            else
+                named_configs.SelectItem(configs.Count - 1);
         }
 
         void SelectConfig()
         {
             if(TCAScenario.NamedConfigs.Count == 0)
+            {
                 GUILayout.Label("", Styles.white, GUILayout.ExpandWidth(true));
+                selected_config = null;
+                return;
+            }
+            if(TCAScenario.NamedConfigs.Count <= NamedConfigChooserThreshold)
+            {
+                EnsureSelectedConfigName();
+                var name = Utils.LeftRightChooser(
+                    selected_config_name,
+                    TCAScenario.NamedConfigs,
+                    Loc.T("NamedConfig_SelectTip", "Select a saved configuration to load, overwrite, or delete."));
+                if(name != selected_config_name)
+                    SyncSelectedConfig(name);
+            }
             else
             {
                 named_configs.DrawButton();
-                var new_config = TCAScenario.GetConfig(named_configs.SelectedIndex);
-                if(new_config != selected_config)
+                if(named_configs.SelectedIndex < TCAScenario.NamedConfigs.Count)
+                    SyncSelectedConfig(TCAScenario.NamedConfigs.Keys[named_configs.SelectedIndex]);
+                else
                 {
-                    selected_config = new_config;
-                    config_name = selected_config != null ? selected_config.Name : string.Empty;
+                    selected_config = null;
+                    selected_config_name = string.Empty;
                 }
             }
         }
@@ -84,6 +133,7 @@ namespace ThrottleControlledAvionics
             if(CPS != null)
                 Utils.ButtonSwitch(Loc.T("CPS", "CPS"), ref CFG.UseCPS,
                                    Loc.T("CPSCollisionTip", "Enable Collision Prevention System"), GUILayout.ExpandWidth(true));
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             Utils.ButtonSwitch(Loc.T("AutoGear", "AutoGear"), ref CFG.AutoGear,
@@ -142,7 +192,7 @@ namespace ThrottleControlledAvionics
             {
                 TCAScenario.SaveNamedConfig(config_name, CFG);
                 UpdateNamedConfigs();
-                named_configs.SelectItem(TCAScenario.NamedConfigs.IndexOfKey(config_name));
+                SyncSelectedConfig(config_name);
             }
             SelectConfig();
             if(GUILayout.Button(Loc.Content("Load", "Load", "LoadConfigTip", "Load selected configuration"),
@@ -153,10 +203,19 @@ namespace ThrottleControlledAvionics
                                 Styles.danger_button, GUILayout.ExpandWidth(false))
                && selected_config != null)
             {
+                var removedIndex = TCAScenario.NamedConfigs.IndexOfKey(selected_config.Name);
                 TCAScenario.NamedConfigs.Remove(selected_config.Name);
-                named_configs.SelectItem(named_configs.SelectedIndex - 1);
+                if(TCAScenario.NamedConfigs.Count > 0)
+                {
+                    var keys = TCAScenario.NamedConfigs.Keys;
+                    SyncSelectedConfig(keys[Utils.Clamp(removedIndex, 0, keys.Count - 1)]);
+                }
+                else
+                {
+                    selected_config = null;
+                    selected_config_name = string.Empty;
+                }
                 UpdateNamedConfigs();
-                selected_config = null;
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();

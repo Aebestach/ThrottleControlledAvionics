@@ -26,6 +26,11 @@ RCSOptimizer
 	OptimizationTorqueCutoff = 0.002 //rad/s2
 	TorqueRatioFactor = 1
 	AngleErrorWeight = 0.1
+	UseLeverWeighting = True //prefer RCS nozzles with longer relative CoM lever arms
+	LeverWeightPower = 1
+	LeverPenaltyWeight = 0.25
+	TranslationErrorWeight = 1
+	ThrustPreservationWeight = 0.5
 }
 
 EngineOptimizer
@@ -473,6 +478,14 @@ TimeWarpControl
 	DewarpTime = 10 //sec
 	MaxWarp    = 100000
 	FramesToSkip = 3
+	UseQuickWarp = true
+	WarpIncreaseDelay = 2 //sec
+	PostWarpSettleTime = 5 //sec
+}
+
+SquadControl
+{
+	MaxTransmitDistance = 100000 //m, max range when transmitting a target to nearby vessels
 }
 
 ManeuverAutopilot
@@ -483,6 +496,17 @@ ManeuverAutopilot
 	ClosestCluster   = 5   //s
 	EfficientCluster = 0.1 //fraction of vessel mass
 	EfficiencyWeight = 10  //how much the fuel mass will affect cluster selection
+}
+
+ManeuverPlanner
+{
+	MaxDisplayedPlans = 20
+	MinPeSafetyMargin = 1000 //m
+	MaxSearchTime = 0.2 //ratio of fixedDeltaTime per frame
+	CoarseSearchSamples = 12
+	RefineSearchSamples = 20
+	LowTWRBurnPeriodFraction = 0.08
+	AutoExecuteCreatedNode = false
 }
 
 MatchVelocityAutopilot
@@ -575,6 +599,7 @@ ToOrbitExecutor
 	MinThrustMod = 0.8
 	MaxThrustMod = 0.99
 	FirstApA = 10 // km above min ApA
+	CoastRecoverTime = 10 //s
 	PitchPID
 	{
 		P = 1
@@ -625,19 +650,26 @@ TargetedToOrbitExecutor
 	}
 }
 
+AdvancedToOrbitExecutor
+{
+	ReplanPeriod                 = 5     //s
+	ReplanError                  = 1500  //m
+	OptimizerHorizon             = 900   //s
+	OptimizerStep                = 0.5   //s
+	TerminalPeTolerance          = 1500  //m
+	TerminalApTolerance          = 1500  //m
+	TerminalInclinationTolerance = 0.05  //deg
+	TerminalStartF               = 0.75  //fraction of target apoapsis
+	DynamicPressureMargin        = 0.9
+	QAlphaLimit                  = 250   //kPa*deg
+	GuidanceBlendTime            = 20    //s
+}
+
 ToOrbitAutopilot
 {
-	Dtol           = 100   //m
-	LaunchSlope    = 30 //deg
-    InclinationPID
-    {
-        P = 0.1
-        I = 0.01
-        D = 0
-        Tau = 1
-        Min = -1
-        Max = 1
-    }
+	Dtol                               = 100   //m
+	LaunchSlope                        = 30    //deg
+	TargetedAscentInclinationTolerance = 0.1   //deg
 }
 
 RendezvousAutopilot

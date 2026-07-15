@@ -56,6 +56,11 @@ namespace ThrottleControlledAvionics
             Block.SetCFG(cfg);
         }
 
+        public override void CommitEdits()
+        {
+            Block?.CommitEdits();
+        }
+
         protected override void DrawThis()
         {
             GUILayout.BeginVertical();
@@ -109,6 +114,12 @@ namespace ThrottleControlledAvionics
             Block.SetCFG(cfg);
         }
 
+        public override void CommitEdits()
+        {
+            base.CommitEdits();
+            Block?.CommitEdits();
+        }
+
         protected override void DrawThis()
         {
             GUILayout.BeginVertical();
@@ -147,6 +158,17 @@ namespace ThrottleControlledAvionics
 
         protected virtual void OnValueChanged() {}
 
+        protected void CommitValue()
+        {
+            if(Value.UpdateValue())
+                OnValueChanged();
+        }
+
+        public override void CommitEdits()
+        {
+            CommitValue();
+        }
+
         protected override void DrawThis()
         {
             GUILayout.BeginHorizontal();
@@ -154,9 +176,11 @@ namespace ThrottleControlledAvionics
             { 
                 GUILayout.Label(Label, Styles.white, GUILayout.ExpandWidth(false));
                 if(Value.Draw(Suffix))
-                { 
-                    OnValueChanged();
-                    Edit = false; 
+                    CommitValue();
+                if(GUILayout.Button(Loc.T("Done", "Done"), Styles.confirm_button, GUILayout.ExpandWidth(false)))
+                {
+                    CommitValue();
+                    Edit = false;
                 }
             }
             else Edit |= GUILayout.Button(new GUIContent(string.Format("{0} {1}{2}", Name, Value, Suffix), Label.tooltip), Styles.normal_button);

@@ -47,6 +47,7 @@ namespace ThrottleControlledAvionics
                 }
             }
             if(BRC != null) BRC.Draw();
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             if(HSC != null)
@@ -80,6 +81,7 @@ namespace ThrottleControlledAvionics
                     else TCA.SquadConfigAction(cfg => cfg.AP1.XOffIfOn(Autopilot1.Land));
                 }
             }
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
         }
         #endregion
@@ -88,10 +90,13 @@ namespace ThrottleControlledAvionics
         Vessel vessel { get { return TCA.vessel; } }
 
         PointNavigator PN;
+        FollowAutopilot FLL;
+        HoverDockingAutopilot HDK;
         BallisticJump BJ;
 
         public bool SelectingTarget { get; private set; }
         bool select_target;
+        bool show_range_summary;
 
         public static void OnAwake()
         {
@@ -103,11 +108,12 @@ namespace ThrottleControlledAvionics
         {
             GUILayout.BeginHorizontal();
             if(BJ != null) BJ.Draw();
-            if(PN != null)
+            if(PN != null || FLL != null || HDK != null)
             {
                 if(VSL.HasTarget && !CFG.Nav.Paused)
                 {
-                    if(Utils.ButtonSwitch(Loc.T("GoTo", "Go To"), CFG.Nav[Navigation.GoToTarget],
+                    if(PN != null &&
+                       Utils.ButtonSwitch(Loc.T("GoTo", "Go To"), CFG.Nav[Navigation.GoToTarget],
                                           Loc.T("GoToTip", "Fly to current target"), GUILayout.ExpandWidth(true)))
                     {
                         VSL.Engines.ActivateEnginesAndRun(() =>
@@ -116,14 +122,47 @@ namespace ThrottleControlledAvionics
                             if(CFG.Nav[Navigation.GoToTarget]) follow_me();
                         });
                     }
-                    if(Utils.ButtonSwitch(Loc.T("Follow", "Follow"), CFG.Nav[Navigation.FollowTarget],
+                    else if(PN == null)
+                        GUILayout.Label(Loc.Content("GoTo", "Go To", null, Loc.T("ModuleStatus_Unavailable", "Unavailable")),
+                                        Styles.inactive_button, GUILayout.ExpandWidth(true));
+                    if(FLL != null &&
+                       Utils.ButtonSwitch(Loc.T("Follow", "Follow"), CFG.Nav[Navigation.FollowTarget],
                                           Loc.T("FollowTip", "Follow current target"), GUILayout.ExpandWidth(true)))
                         VSL.Engines.ActivateEnginesAndRun(() => TCA.SquadAction(tca =>
                         {
-                            if(TCA.vessel.targetObject as Vessel == tca.vessel) return;
-                            tca.vessel.targetObject = TCA.vessel.targetObject;
+                            if(TCA.vessel == tca.vessel) return;
+                            var wp = VSL.ResolveTarget();
+                            if(wp == null) return;
+                            tca.VSL.ReceiveTransmittedTarget(wp.TransmitCopy());
                             tca.CFG.Nav.XOn(Navigation.FollowTarget);
                         }));
+                    else if(FLL == null)
+                        GUILayout.Label(Loc.Content("Follow", "Follow", null, Loc.T("ModuleStatus_Unavailable", "Unavailable")),
+                                        Styles.inactive_button, GUILayout.ExpandWidth(true));
+                    if(HDK != null && HDK.HasUsableTarget() && !CFG.Nav.Paused)
+                    {
+                        if(CFG.Nav[Navigation.HoverDocking])
+                        {
+                            if(Utils.ButtonSwitch(Loc.T("HoverDocking_Button", "Hover Dock"), true,
+                                                  Loc.T("HoverDocking_ButtonTip", "Hover near the selected docking target and perform a low-speed final approach. Click to stop."),
+                                                  GUILayout.ExpandWidth(true)))
+                                VSL.Engines.ActivateEnginesAndRun(() => CFG.Nav.XToggle(Navigation.HoverDocking));
+                        }
+                        else if(GUILayout.Button(Loc.Content("HoverDocking_Button", "Hover Dock",
+                            "HoverDocking_ButtonTip",
+                            "Hover near the selected docking target and perform a low-speed final approach. Click to show options."),
+                            HDK.ShowOptions ? Styles.enabled_button : Styles.active_button,
+                            GUILayout.ExpandWidth(true)))
+                            HDK.ShowOptions = !HDK.ShowOptions;
+                    }
+                    else if(HDK == null)
+                        GUILayout.Label(Loc.Content("HoverDocking_Button", "Hover Dock", null, Loc.T("ModuleStatus_Unavailable", "Unavailable")),
+                                        Styles.inactive_button, GUILayout.ExpandWidth(true));
+                    else
+                        GUILayout.Label(Loc.Content("HoverDocking_Button", "Hover Dock",
+                                        "HoverDocking_Target_Tooltip",
+                                        "Select a vessel or docking port target for hover docking."),
+                                        Styles.inactive_button, GUILayout.ExpandWidth(true));
                 }
                 else
                 {
@@ -131,11 +170,19 @@ namespace ThrottleControlledAvionics
                                     Styles.inactive_button, GUILayout.ExpandWidth(true));
                     GUILayout.Label(Loc.Content("Follow", "Follow", null, CFG.Nav.Paused ? Loc.T("Paused", "Paused") : Loc.T("NoTargetSelected", "No target selected")),
                                     Styles.inactive_button, GUILayout.ExpandWidth(true));
+                    GUILayout.Label(Loc.Content("HoverDocking_Button", "Hover Dock", null, CFG.Nav.Paused ? Loc.T("Paused", "Paused") : Loc.T("NoTargetSelected", "No target selected")),
+                                    Styles.inactive_button, GUILayout.ExpandWidth(true));
                 }
             }
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
             if(BJ != null && BJ.ShowOptions)
                 BJ.DrawOptions();
+            if(HDK != null && HDK.ShowOptions)
+                HDK.DrawOptions();
+            if(HDK != null)
+                HDK.Draw();
+            DrawRangeSummary();
             GUILayout.BeginHorizontal();
             if(SQD != null && SQD.SquadMode)
             {
@@ -184,9 +231,10 @@ namespace ThrottleControlledAvionics
                 else GUILayout.Label(Loc.Content("FollowRoute", "Follow Route", null, CFG.Nav.Paused ? Loc.T("Paused", "Paused") : Loc.T("AddWaypointsFirst", "Add some waypoints first")),
                                      Styles.inactive_button, GUILayout.ExpandWidth(true));
             }
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
-            if(PN != null || CC != null)
+            if(PN != null || FLL != null || CC != null)
             {
                 var max_nav_speed = Utils.FloatSlider("", CFG.MaxNavSpeed,
                                                       CFG.HF[HFlight.CruiseControl] ? CruiseControl.C.MaxRevSpeed : PointNavigator.C.MinSpeed, PointNavigator.C.MaxSpeed,
@@ -194,7 +242,85 @@ namespace ThrottleControlledAvionics
                 if(Mathf.Abs(max_nav_speed - CFG.MaxNavSpeed) > 1e-5)
                     TCA.SquadConfigAction(cfg => cfg.MaxNavSpeed = max_nav_speed);
             }
+            Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
+        }
+
+        MissionPredictionResult get_range_prediction()
+        {
+            if(VSL == null || VSL.Engines == null || VSL.Engines.NoActiveEngines)
+                return null;
+            var target = VSL.ResolveTarget();
+            var profile = new MissionProfile
+            {
+                Body = VSL.Body,
+                StartAltitude = VSL.Altitude.Absolute,
+                TargetDistance = target != null ? (float)target.DistanceTo(vessel) : 0,
+                MaxCruiseSpeed = CFG.MaxNavSpeed,
+                HoverReserveTime = LandingTrajectoryAutopilot.C.HoverTimeThreshold,
+                AllowParachutes = CFG.AutoParachutes,
+                AllowStaging = CFG.AutoStage,
+                Scenario = target != null ? MissionScenario.TargetRange : MissionScenario.RepeatedHops
+            };
+            return MissionRangePlanner.Evaluate(MissionPerformanceSnapshot.FromVessel(VSL), profile);
+        }
+
+        static string format_time(float seconds)
+        {
+            if(seconds <= 0 || float.IsNaN(seconds) || float.IsInfinity(seconds))
+                return "N/A";
+            return KSPUtil.PrintDateDeltaCompact(seconds, true, true);
+        }
+
+        static string recommendation(MissionRecommendation recommendation)
+        {
+            switch(recommendation)
+            {
+            case MissionRecommendation.GoTo:
+                return Loc.T("RangePlanner_RecommendGoTo", "Go To");
+            case MissionRecommendation.BallisticJump:
+                return Loc.T("RangePlanner_RecommendJump", "Jump To");
+            default:
+                return Loc.T("RangePlanner_RecommendNone", "No safe mode");
+            }
+        }
+
+        void DrawRangeSummary()
+        {
+            GUILayout.BeginHorizontal();
+            Utils.ButtonSwitch(Loc.T("RangePlanner_Range", "Range"), ref show_range_summary,
+                               Loc.T("RangePlanner_RangeTip", "Show estimated hover time, cruise range and ballistic hop range."),
+                               GUILayout.ExpandWidth(true));
+            Utils.EnsureLayoutControl();
+            GUILayout.EndHorizontal();
+            if(!show_range_summary)
+                return;
+            var prediction = get_range_prediction();
+            GUILayout.BeginVertical(Styles.white);
+            if(prediction == null || !prediction.Valid)
+            {
+                GUILayout.Label(prediction != null ? prediction.Status : Loc.T("RangePlanner_InvalidSnapshot", "No usable vessel performance data."),
+                                Styles.boxed_label, GUILayout.ExpandWidth(true));
+                GUILayout.EndVertical();
+                return;
+            }
+            GUILayout.Label(Loc.F("RangePlanner_FlightSummary",
+                                  "Hover: <<1>> | Cruise: <<2>> | Hop: <<3>> x <<4>>",
+                                  format_time(prediction.HoverTime),
+                                  Utils.formatBigValue(prediction.PoweredCruiseRange, "m"),
+                                  Utils.formatBigValue(prediction.BestHopDistance, "m"),
+                                  prediction.HopCount),
+                          Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(prediction.Recommendation != MissionRecommendation.None || prediction.TargetJumpFuel > 0 || prediction.TargetGoToFuel > 0)
+                GUILayout.Label(Loc.F("RangePlanner_TargetSummary",
+                                      "Target: <<1>> | Go To fuel: <<2>> | Jump fuel: <<3>>",
+                                      recommendation(prediction.Recommendation),
+                                      Utils.formatMass(prediction.TargetGoToFuel),
+                                      Utils.formatMass(prediction.TargetJumpFuel)),
+                              Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(prediction.HasWarnings)
+                GUILayout.Label(prediction.Warnings[0], Styles.warning, GUILayout.ExpandWidth(true));
+            GUILayout.EndVertical();
         }
 
         #region WaypointList
@@ -203,6 +329,7 @@ namespace ThrottleControlledAvionics
         bool show_path_library;
         bool show_stock_waypoints;
         bool was_in_map_view;
+        Action pending_waypoint_action;
 
         public void TargetUI()
         {
@@ -218,13 +345,26 @@ namespace ThrottleControlledAvionics
                         VSL.UpdateTarget(CFG.Target.CopyMovable());
                     edit_waypoint(CFG.Target);
                 }
+                if(SQD != null && GUILayout.Button(
+                       Loc.Content("TransmitTarget", "Transmit Target", "TransmitTargetTip",
+                           "Send the current target to nearby TCA vessels with the same squad ID."),
+                       Styles.enabled_button, GUILayout.ExpandWidth(true)))
+                    SQD.TransmitTarget();
                 if(VSL.TargetUsers.Count > 0)
                     GUILayout.Label(Loc.Content("DelTarget", "Del Target", "DelTargetInUseTip", "Target point is in use"),
                                     Styles.inactive_button, GUILayout.ExpandWidth(true));
                 else if(GUILayout.Button(Loc.Content("DelTarget", "Del Target", "DelTargetTip", "Remove target point"),
-                                         Styles.danger_button, GUILayout.ExpandWidth(true)))
+                                         Styles.danger_button, GUILayout.ExpandWidth(false)))
                     VSL.SetTarget(null);
                 GUILayout.EndHorizontal();
+            }
+            else if(VSL.ResolveTarget() != null)
+            {
+                if(SQD != null && GUILayout.Button(
+                       Loc.Content("TransmitTarget", "Transmit Target", "TransmitTargetTip",
+                           "Send the current target to nearby TCA vessels with the same squad ID."),
+                       Styles.enabled_button, GUILayout.ExpandWidth(true)))
+                    SQD.TransmitTarget();
             }
             else if(GUILayout.Button(Loc.Content("SetSurfaceTarget", "Set Surface Target", "SetSurfaceTargetTip", "Select target point on the surface"),
                                      Styles.active_button, GUILayout.ExpandWidth(true)))
@@ -315,7 +455,17 @@ namespace ThrottleControlledAvionics
         //FIXME: this is a real FPS hog!!!
         public void WaypointList()
         {
-            if(PN == null) return;
+            if(Event.current.type == EventType.Layout && pending_waypoint_action != null)
+            {
+                var action = pending_waypoint_action;
+                pending_waypoint_action = null;
+                action();
+            }
+            if(PN == null)
+            {
+                Utils.EnsureLayoutControl();
+                return;
+            }
             var WPM = WaypointManager.Instance();
             if(CFG.Path.Count == 0)
             {
@@ -324,6 +474,7 @@ namespace ThrottleControlledAvionics
                     Utils.ButtonSwitch(Loc.T("NavigationPaths", "Navigation Paths"), ref show_path_library, "", GUILayout.ExpandWidth(true));
                 if(WPM != null && WPM.Waypoints.Count > 0)
                     Utils.ButtonSwitch(Loc.T("ContractWaypoints", "Contract Waypoints"), ref show_stock_waypoints, "", GUILayout.ExpandWidth(true));
+                Utils.EnsureLayoutControl();
                 GUILayout.EndHorizontal();
                 stock_waypoints(WPM);
                 path_library();
@@ -362,6 +513,7 @@ namespace ThrottleControlledAvionics
                     GUI.contentColor = marker_color(i, num);
                     var label = Loc.F("WaypointListItem", "<<1>>) <<2>>", 1 + i, wp.GetName());
                     if(wp == edited_waypoint) label += " *";
+                    GUILayout.BeginVertical();
                     if(CFG.Target == wp)
                     {
                         var hd = (float)wp.DistanceTo(vessel);
@@ -373,6 +525,8 @@ namespace ThrottleControlledAvionics
                             info += Loc.F("WaypointETA", ", ETA <<1>>", new TimeSpan(0, 0, (int)(hd / VSL.HorizontalSpeed.Absolute)).ToString("c"));
                         GUILayout.Label(info, Styles.white, GUILayout.ExpandWidth(true));
                     }
+                    else
+                        GUILayout.Label("", Styles.white, GUILayout.ExpandWidth(true));
                     GUILayout.BeginHorizontal();
                     if(GUILayout.Button(new GUIContent(label, Loc.F("WaypointTargetTip", "<<1>>\nPush to target this waypoint", wp.SurfaceDescription(vessel))),
                                         GUILayout.ExpandWidth(true)))
@@ -386,18 +540,32 @@ namespace ThrottleControlledAvionics
                     if(LND != null &&
                        Utils.ButtonSwitch(Loc.T("Land", "Land"), wp.Land, Loc.T("LandOnArrivalTip", "Land on arrival")))
                         wp.Land = !wp.Land;
+                    else if(LND == null)
+                        GUILayout.Label(Loc.T("Land", "Land"), Styles.inactive_button);
                     if(Utils.ButtonSwitch("||", wp.Pause, Loc.T("PauseOnArrivalTip", "Pause on arrival"), GUILayout.Width(25)))
                         wp.Pause = !wp.Pause;
                     if(GUILayout.Button(Loc.Content("DeleteWaypoint", "X", "DeleteWaypointTip", "Delete waypoint"),
                                         Styles.danger_button, GUILayout.Width(25)))
                         del = wp;
                     GUILayout.EndHorizontal();
+                    GUILayout.EndVertical();
                     i++;
                 }
                 GUI.contentColor = col;
-                if(del != null) CFG.Path.Remove(del);
-                else if(up != null) CFG.Path.MoveUp(up);
-                if(CFG.Path.Count == 0 && CFG.Nav) CFG.HF.XOn(HFlight.Stop);
+                if(del != null)
+                {
+                    var wpToDelete = del;
+                    pending_waypoint_action = () =>
+                    {
+                        CFG.Path.Remove(wpToDelete);
+                        if(CFG.Path.Count == 0 && CFG.Nav) CFG.HF.XOn(HFlight.Stop);
+                    };
+                }
+                else if(up != null)
+                {
+                    var wpToMove = up;
+                    pending_waypoint_action = () => CFG.Path.MoveUp(wpToMove);
+                }
                 GUILayout.EndVertical();
                 GUILayout.EndScrollView();
                 GUILayout.BeginHorizontal();
@@ -416,7 +584,7 @@ namespace ThrottleControlledAvionics
                     }
                 }
                 if(GUILayout.Button(Loc.T("ClearPath", "Clear Path"), Styles.danger_button, GUILayout.ExpandWidth(false)))
-                    CFG.Path.Clear();
+                    pending_waypoint_action = () => CFG.Path.Clear();
                 GUILayout.EndHorizontal();
                 GUILayout.EndVertical();
             }
@@ -467,7 +635,7 @@ namespace ThrottleControlledAvionics
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             GUILayout.Label(Loc.T("Longitude", "Longitude:"), GUILayout.Width(70));
-            LatField.Draw("°", 1, "F1");
+            LonField.Draw("°", 1, "F1");
             GUILayout.EndHorizontal();
             GUILayout.BeginHorizontal();
             GUILayout.Label(Loc.T("Altitude", "Altitude:"), GUILayout.Width(70));

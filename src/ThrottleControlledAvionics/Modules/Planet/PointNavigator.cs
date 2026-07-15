@@ -8,7 +8,6 @@
 // or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using AT_Utils;
 
@@ -67,26 +66,32 @@ namespace ThrottleControlledAvionics
 
         public PointNavigator(ModuleTCA tca) : base(tca) {}
 
-        public bool Maneuvering { get; private set; }
-        public List<FormationNode> Formation;
+        public enum Stage
+        {
+            None,
+            ResolveDestination,
+            Takeoff,
+            Navigate,
+            GreatCircle,
+            DirectApproach,
+            SharpTurn,
+            ArrivedWait,
+            AdvancePath,
+            HandoffLand,
+            HandoffAnchor,
+            Finished
+        }
+
+        [Persistent] public Stage stage;
 
         AsymmetricFiterF max_speed = new AsymmetricFiterF();
         readonly PIDf_Controller DistancePID = new PIDf_Controller();
         readonly PIDvd_Controller LateralPID = new PIDvd_Controller();
         readonly PIDf_Controller CorrectionPID = new PIDf_Controller();
+        PredictiveBrakingController Braking;
         readonly Timer ArrivedTimer = new Timer();
         readonly Timer SharpTurnTimer = new Timer();
-
-        Vessel tVSL;
-        ModuleTCA tTCA;
-        PointNavigator tPN;
-        SortedList<Guid, PointNavigator> all_followers = new SortedList<Guid, PointNavigator>();
-        FormationNode fnode;
-        Vector3 formation_offset { get { return fnode == null? Vector3.zero : fnode.Offset; } }
-        bool CanManeuver = true;
-        Timer FormationBreakTimer = new Timer();
-        Timer FormationUpdateTimer = new Timer();
-        bool keep_formation;
+        bool verticalArrivalReady;
 
         #pragma warning disable 169
         HorizontalSpeedControl HSC;
@@ -104,10 +109,9 @@ namespace ThrottleControlledAvionics
             LateralPID.Reset();
             CorrectionPID.setPID(C.CorrectionPID);
             CorrectionPID.Reset();
+            Braking = new PredictiveBrakingController(VSL, HSC);
             ArrivedTimer.Period = C.MinTime;
-            FormationBreakTimer.Period = C.FormationBreakTime;
-            FormationUpdateTimer.Period = C.FormationUpdateTimer;
-            CFG.Nav.AddCallback(GoToTargetCallback, Navigation.GoToTarget, Navigation.FollowTarget);
+            CFG.Nav.AddCallback(GoToTargetCallback, Navigation.GoToTarget);
             CFG.Nav.AddCallback(FollowPathCallback, Navigation.FollowPath);
             max_speed.TauUp = C.MaxSpeedFilterUp;
             max_speed.TauDown = C.MaxSpeedFilterDown;
@@ -116,14 +120,14 @@ namespace ThrottleControlledAvionics
 
         public override void Disable()
         {
-            CFG.Nav.OffIfOn(Navigation.GoToTarget, Navigation.FollowPath, Navigation.FollowTarget);
+            CFG.Nav.OffIfOn(Navigation.GoToTarget, Navigation.FollowPath);
         }
 
         protected override void UpdateState() 
         { 
             base.UpdateState();
             IsActive &= CFG.Target  && VSL.OnPlanet &&
-                CFG.Nav.Any(Navigation.GoToTarget, Navigation.FollowPath, Navigation.FollowTarget);
+                CFG.Nav.Any(Navigation.GoToTarget, Navigation.FollowPath);
         }
 
         public void GoToTargetCallback(Multiplexer.Command cmd)
@@ -176,16 +180,23 @@ namespace ThrottleControlledAvionics
             {
                 CFG.AltitudeAboveTerrain = true;
                 CFG.VF.OnIfNot(VFlight.AltitudeControl);
-                CFG.DesiredAltitude = C.TakeoffAltitude+VSL.Geometry.H;
+                if(CFG.DesiredAltitude < C.TakeoffAltitude + VSL.Geometry.H)
+                    CFG.DesiredAltitude = C.TakeoffAltitude + VSL.Geometry.H;
+                stage = Stage.Takeoff;
             }                
             else if(CFG.VTOLAssistON) 
+            {
                 VSL.GearOn(false);
+                stage = Stage.Navigate;
+            }
+            else stage = Stage.Navigate;
             max_speed.Set(CFG.MaxNavSpeed);
-            reset_formation();
             SetTarget(wp);
             DistancePID.Reset();
             LateralPID.Reset();
             CorrectionPID.Reset();
+            Braking?.Reset(CFG.MaxNavSpeed);
+            verticalArrivalReady = false;
             CFG.HF.OnIfNot(HFlight.NoseOnCourse);
             NeedCPS();
         }
@@ -193,14 +204,15 @@ namespace ThrottleControlledAvionics
         void finish()
         {
             ReleaseCPS();
-            reset_formation();
             SetTarget();
+            stage = Stage.Finished;
             CFG.Nav.Off();
             CFG.HF.OnIfNot(HFlight.Stop);
         }
 
         private void anchor_at_target()
         {
+            stage = Stage.HandoffAnchor;
             CFG.Anchor = CFG.Target;
             CFG.Nav.XOn(Navigation.Anchor);
         }
@@ -210,6 +222,7 @@ namespace ThrottleControlledAvionics
             if(CFG.Target == null || !CFG.Target.Valid) return false;
             if(CFG.Target.Land && LND != null)    
             { 
+                stage = Stage.HandoffLand;
                 if(!CFG.Target.IsVessel)
                     LND.StartFromTarget();
                 VSL.Controls.PauseWhenStopped = CFG.Target.Pause;
@@ -219,6 +232,7 @@ namespace ThrottleControlledAvionics
             }
             if(CFG.Target.Pause) 
             { 
+                stage = Stage.HandoffAnchor;
                 CFG.Target.Pause = false;
                 VSL.Controls.PauseWhenStopped = true;
                 anchor_at_target();
@@ -227,248 +241,107 @@ namespace ThrottleControlledAvionics
             return false;
         }
 
-        void reset_formation()
-        {
-            Maneuvering = false;
-            Formation = null;
-            fnode = null;    
-            tVSL = null;
-            tPN = null;
-        }
-
-        public void UpdateFormation(List<FormationNode> formation)
-        {
-            if(formation == null) reset_formation();
-            else { Formation = formation; fnode = null; }
-        }
-
-        void update_formation_info()
-        {
-            tVSL = CFG.Target.GetVessel();
-            if(tVSL == null) 
-            { 
-                reset_formation(); 
-                CanManeuver = false; 
-                return; 
-            }
-            if(tPN == null || !tPN.Valid)
-            {
-                tTCA = ModuleTCA.EnabledTCA(tVSL);
-                tPN = tTCA != null? tTCA.GetModule<PointNavigator>() : null;
-            }
-            var only_count = false;
-            if(tVSL.srf_velocity.sqrMagnitude < C.FormationSpeedSqr)
-            { reset_formation(); CanManeuver = false; only_count = true; }
-            //update followers
-            var offset = 0f;
-            var can_maneuver = true;
-            all_followers.Clear();
-            for(int i = 0, num_vessels = FlightGlobals.Vessels.Count; i < num_vessels; i++)
-            {
-                var v = FlightGlobals.Vessels[i];
-                if(v == null || v.packed || !v.loaded) continue;
-                var tca = ModuleTCA.EnabledTCA(v);
-                if(tca != null && 
-                   (tca.vessel == VSL.vessel || 
-                    tca.CFG.Nav[Navigation.FollowTarget] &&
-                    tca.CFG.Target.GetTarget() != null &&
-                    tca.CFG.Target.GetTarget() == CFG.Target.GetTarget()))
-                {
-                    var vPN = tca.GetModule<PointNavigator>();
-                    if(vPN == null) continue;
-                    all_followers.Add(v.id, vPN);
-                    if(offset < vPN.VSL.Geometry.R)
-                        offset = vPN.VSL.Geometry.R;
-                    if(v.id != VSL.vessel.id)
-                        can_maneuver &= !vPN.Maneuvering || 
-                            (Maneuvering && VSL.vessel.id.CompareTo(v.id) > 0);
-                }
-            }
-            if(only_count) return;
-            CanManeuver = can_maneuver;
-            var follower_index = all_followers.IndexOfKey(VSL.vessel.id);
-            if(follower_index == 0)
-            {
-                var forward = tVSL == null? Vector3d.zero : -tVSL.srf_velocity.normalized;
-                var side = Vector3d.Cross(VSL.Physics.Up, forward).normalized;
-                var num_offsets = all_followers.Count+(all_followers.Count%2);
-                offset *= 2;
-                var target_size = tTCA != null? tTCA.VSL.Geometry.D : Utils.ClampL(Math.Pow(tVSL.totalMass, 1/3f), 1);
-                if(offset < target_size) offset = (float)target_size;
-                offset *= C.MinDistance;
-                if(Formation == null || Formation.Count != num_offsets || FormationUpdateTimer.TimePassed)
-                {
-                    FormationUpdateTimer.Reset();
-                    Formation = new List<FormationNode>(num_offsets);
-                    for(int i = 0; i < num_offsets; i++) 
-                        Formation.Add(new FormationNode(tVSL, i, forward, side, offset));
-                    all_followers.ForEach(p => p.Value.UpdateFormation(Formation));
-                }
-                else for(int i = 0; i < num_offsets; i++) 
-                    Formation[i].Update(forward, side, offset);
-            }
-            keep_formation = Formation != null;
-            if(Formation == null || fnode != null) return;
-            //compute follower offset
-            var min_d   = -1f;
-            var min_off = 0;
-            for(int i = 0; i < Formation.Count; i++)
-            {
-                var node = Formation[i];
-                if(node.Follower != null) continue;
-                var d = node.Distance(VSL.vessel);
-                if(min_d < 0 || min_d > d)
-                {
-                    min_d = d;
-                    min_off = i;
-                }
-            }
-            Formation[min_off].Follower = VSL.vessel;
-            fnode = Formation[min_off];
-        }
-
         protected override void Update()
         {
             if(CFG.Nav.Paused) return;
-            //differentiate between flying in formation and going to the target
-            var vdistance = 0f; //vertical distance to the target
-            if(CFG.Nav[Navigation.FollowTarget]) 
-                update_formation_info();
-            else 
-            { 
-                VSL.Altitude.LowerThreshold = (float)CFG.Target.Pos.Alt;
-                if(ALT != null && CFG.VF[VFlight.AltitudeControl] && CFG.AltitudeAboveTerrain)
-                    vdistance = VSL.Altitude.LowerThreshold+CFG.DesiredAltitude-VSL.Altitude.Absolute;
-                tVSL = null; 
-                tPN = null; 
+            if(stage == Stage.None || stage == Stage.Finished)
+                stage = Stage.ResolveDestination;
+            if(stage == Stage.Takeoff)
+            {
+                CFG.HF.OnIfNot(HFlight.Level);
+                VSL.HorizontalSpeed.SetNeeded(Vector3d.zero);
+                if(!VSL.LandedOrSplashed && VSL.Altitude.Relative > C.TakeoffAltitude * 0.8f)
+                {
+                    stage = Stage.Navigate;
+                    CFG.HF.OnIfNot(HFlight.NoseOnCourse);
+                }
+                else
+                    return;
             }
+            var vdistance = 0f; //vertical distance to the target
+            VSL.Altitude.LowerThreshold = (float)CFG.Target.Pos.Alt;
+            if(ALT != null && CFG.VF[VFlight.AltitudeControl] && CFG.AltitudeAboveTerrain)
+                vdistance = VSL.Altitude.LowerThreshold+CFG.DesiredAltitude-VSL.Altitude.Absolute;
             //calculate direct distance
-            var vdir = Vector3.ProjectOnPlane(CFG.Target.GetTransform().position+formation_offset-VSL.Physics.wCoM, VSL.Physics.Up);
-            var hdistance = Utils.ClampL(vdir.magnitude-VSL.Geometry.R, 0);
-            var bearing_threshold = Utils.Clamp(1/VSL.Torque.MaxCurrent.AngularAccelerationAroundAxis(VSL.Engines.CurrentDefThrustDir), 
-                                                C.BearingCutoffCos, 0.98480775f); //10deg yaw error
+            var vdir = SurfaceNavigationController.TargetVector(VSL, CFG.Target, Vector3.zero);
+            var hdistance = SurfaceNavigationController.HorizontalDistance(VSL, vdir);
+            var bearing_threshold = SurfaceNavigationController.BearingThreshold(VSL); //10deg yaw error
             //update destination
-            if(tPN != null && tPN.Valid && !tPN.VSL.Info.Destination.IsZero()) 
-                VSL.Info.Destination = tPN.VSL.Info.Destination;
-            else VSL.Info.Destination = vdir;
-            //handle flying in formation
-            var tvel = Vector3.zero;
+            VSL.Info.Destination = vdir;
             var vel_is_set = false;
             var end_distance = CFG.Target.AbsRadius;
             var dvel = VSL.HorizontalSpeed.Vector;
             if(CFG.Target.Land) end_distance /= 4;
-            if(tVSL != null && tVSL.loaded)
-            {
-                if(formation_offset.IsZero()) end_distance *= all_followers.Count/2f;
-                tvel = Vector3d.Exclude(VSL.Physics.Up, tVSL.srf_velocity);
-                dvel -= tvel;
-                var tvel_m = tvel.magnitude;
-                var dir2vel_cos = Vector3.Dot(vdir.normalized, tvel.normalized);
-                var lat_dir  = Vector3.ProjectOnPlane(vdir-VSL.HorizontalSpeed.Vector*C.LookAheadTime, tvel);
-                var lat_dist = lat_dir.magnitude;
-                FormationBreakTimer.RunIf(() => keep_formation = false, 
-                                          tvel_m < C.FormationSpeedCutoff);
-                Maneuvering = CanManeuver && lat_dist > CFG.Target.AbsRadius && hdistance < CFG.Target.AbsRadius*3;
-                if(keep_formation && tvel_m > 0 &&
-                   (!CanManeuver || 
-                    dir2vel_cos <= bearing_threshold || 
-                    lat_dist < CFG.Target.AbsRadius*3))
-                {
-                    if(CanManeuver) 
-                        HSC.AddWeightedCorrection(lat_dir.normalized*Utils.ClampH(lat_dist/CFG.Target.AbsRadius, 1) * 
-                                                  tvel_m*C.FormationFactor*(Maneuvering? 1 : 0.5f));
-                    hdistance = Utils.ClampL(Mathf.Abs(dir2vel_cos)*hdistance-VSL.Geometry.R, 0);
-                    if(dir2vel_cos < 0)
-                    {
-                        if(hdistance < CFG.Target.AbsRadius)
-                            HSC.AddRawCorrection(tvel*Utils.Clamp(-hdistance/CFG.Target.AbsRadius*C.FormationFactor, -C.FormationFactor, 0));
-                        else if(Vector3.Dot(vdir, dvel) < 0 && 
-                                (dvel.magnitude > C.FollowerMaxAwaySpeed ||
-                                 hdistance > CFG.Target.AbsRadius*5))
-                        {
-                            keep_formation = true;
-                            VSL.HorizontalSpeed.SetNeeded(vdir);
-                            return;
-                        }
-                        else HSC.AddRawCorrection(tvel*(C.FormationFactor-1));
-                        hdistance = 0;
-                    }
-                    vdir = tvel;
-                }
-            }
             //if the distance is greater that the threshold (in radians), use the Great Circle navigation
             if(hdistance/VSL.Body.Radius > C.DirectNavThreshold)
             {
-                var next = CFG.Target.PointFrom(VSL.vessel, 0.1);
-                hdistance = (float)CFG.Target.DistanceTo(VSL.vessel);
-                vdir = Vector3.ProjectOnPlane(VSL.Body.GetWorldSurfacePosition(next.Lat, next.Lon, VSL.vessel.altitude)
-                                              -VSL.vessel.transform.position, VSL.Physics.Up);
-                tvel = Vector3.zero;
+                stage = Stage.GreatCircle;
+                vdir = SurfaceNavigationController.GreatCircleDirection(VSL, CFG.Target, out hdistance);
             }
             else if(!VSL.IsActiveVessel && hdistance > GLB.UnpackDistance) 
+            {
+                stage = Stage.DirectApproach;
                 VSL.SetUnpackDistance(hdistance*1.2f);
+            }
+            else if(stage != Stage.SharpTurn)
+                stage = Stage.DirectApproach;
             vdir.Normalize();
+            var vertical_tolerance = Mathf.Max(VSL.Geometry.R, C.MinDistance);
+            if(!CFG.AltitudeAboveTerrain || !CFG.VF[VFlight.AltitudeControl])
+                verticalArrivalReady = true;
+            else if(verticalArrivalReady)
+                verticalArrivalReady &= vdistance <= Mathf.Max(vertical_tolerance * 1.5f, vertical_tolerance + 2);
+            else
+                verticalArrivalReady = vdistance <= vertical_tolerance;
+            var vertically_ready = verticalArrivalReady;
             //check if we have arrived to the target and stayed long enough
             if(hdistance < end_distance)
             {
-                if(CFG.Nav[Navigation.FollowTarget])
-                {
-                    var prev_needed_speed = VSL.HorizontalSpeed.NeededVector.magnitude;
-                    if(prev_needed_speed < 1 && !CFG.HF[HFlight.Move]) 
-                        CFG.HF.OnIfNot(HFlight.Move);
-                    else if(prev_needed_speed > 10 && !CFG.HF[HFlight.NoseOnCourse]) 
-                        CFG.HF.OnIfNot(HFlight.NoseOnCourse);
-                    if(tvel.sqrMagnitude > 1)
-                    {
-                        //set needed velocity and starboard to match that of the target
-                        keep_formation = true;
-                        VSL.HorizontalSpeed.SetNeeded(tvel);
-                        HSC.AddRawCorrection((tvel-VSL.HorizontalSpeed.Vector)*0.9f);
-                    }
-                    else 
-                        VSL.HorizontalSpeed.SetNeeded(Vector3d.zero);
-                    vel_is_set = true;
-                }
-                else
-                {
+                stage = Stage.ArrivedWait;
+                if(vertically_ready)
                     CFG.HF.OnIfNot(HFlight.Move);
+                else
+                    CFG.HF.OnIfNot(VSL.LandedOrSplashed ? HFlight.Level : HFlight.NoseOnCourse);
+                if(vertically_ready)
                     VSL.Altitude.DontCorrectIfSlow();
-                    VSL.HorizontalSpeed.SetNeeded(Vector3d.zero);
-                    vel_is_set = true;
-                    if(vdistance <= 0 && vdistance > -VSL.Geometry.R)
+                VSL.HorizontalSpeed.SetNeeded(Vector3d.zero);
+                vel_is_set = true;
+                if(vertically_ready && vdistance <= 0 && vdistance > -VSL.Geometry.R)
+                {
+                    if(CFG.Nav[Navigation.FollowPath] && CFG.Path.Count > 0)
                     {
-                        if(CFG.Nav[Navigation.FollowPath] && CFG.Path.Count > 0)
+                        if(CFG.Path.Peek() == CFG.Target)
                         {
-                            if(CFG.Path.Peek() == CFG.Target)
+                            if(CFG.Path.Count > 1)
                             {
-                                if(CFG.Path.Count > 1)
-                                { 
-                                    CFG.Path.Dequeue();
-                                    if(on_arrival()) return;
-                                    start_to(CFG.Path.Peek());
-                                    return;
-                                }
-                                if(ArrivedTimer.TimePassed)
-                                { 
-                                    CFG.Path.Clear();
-                                    if(on_arrival()) return;
-                                    anchor_at_target();
-                                    return;
-                                }
-                            }
-                            else 
-                            { 
+                                stage = Stage.AdvancePath;
+                                CFG.Path.Dequeue();
                                 if(on_arrival()) return;
-                                start_to(CFG.Path.Peek()); 
-                                return; 
+                                start_to(CFG.Path.Peek());
+                                return;
+                            }
+                            if(ArrivedTimer.TimePassed)
+                            {
+                                stage = Stage.AdvancePath;
+                                CFG.Path.Clear();
+                                if(on_arrival()) return;
+                                anchor_at_target();
+                                return;
                             }
                         }
-                        else if(ArrivedTimer.TimePassed) 
-                        { 
-                            if(on_arrival()) return; 
-                            finish(); 
-                            return; 
+                        else
+                        {
+                            stage = Stage.AdvancePath;
+                            if(on_arrival()) return;
+                            start_to(CFG.Path.Peek());
+                            return;
                         }
+                    }
+                    else if(ArrivedTimer.TimePassed)
+                    {
+                        if(on_arrival()) return;
+                        finish();
+                        return;
                     }
                 }
             }
@@ -479,16 +352,15 @@ namespace ThrottleControlledAvionics
                 //if we need to make a sharp turn, stop and turn, then go on
                 var heading_dir = Vector3.Dot(VSL.OnPlanetParams.Heading, vdir);
                 var hvel_dir = Vector3d.Dot(VSL.HorizontalSpeed.normalized, vdir);
-                var sharp_turn_allowed = !CFG.Nav[Navigation.FollowTarget] ||
-                    hdistance < end_distance*Utils.ClampL(all_followers.Count/2, 2);
+                const bool sharp_turn_allowed = true;
                 if(heading_dir < bearing_threshold && 
                    hvel_dir < bearing_threshold &&
                    sharp_turn_allowed)
                     SharpTurnTimer.Start();
                 if(SharpTurnTimer.Started)
                 {
+                    stage = Stage.SharpTurn;
                     VSL.HorizontalSpeed.SetNeeded(vdir);
-                    Maneuvering = false;
                     vel_is_set = true;
                     if(heading_dir < bearing_threshold || sharp_turn_allowed &&
                        VSL.HorizontalSpeed.Absolute > 1 && Math.Abs(hvel_dir) < C.BearingCutoffCos)
@@ -530,140 +402,34 @@ namespace ThrottleControlledAvionics
                     }
                     else hdistance = min_dist;
                 }
-                else if(CFG.Nav.Not(Navigation.FollowTarget))
-                    hdistance = Utils.ClampL(hdistance-end_distance+VSL.Geometry.D, 0);
-                //tune maximum speed and PID
-                if(CFG.MaxNavSpeed < 10) CFG.MaxNavSpeed = 10;
-                DistancePID.Min = HorizontalSpeedControl.C.TranslationMinDeltaV+0.1f;
-                DistancePID.Max = CFG.MaxNavSpeed;
-                if(CFG.Nav[Navigation.FollowTarget])
-                {
-                    DistancePID.P = C.DistancePID.P/2;
-                    DistancePID.D = DistancePID.P/2;
-                }
                 else
-                {
-                    DistancePID.P = C.DistancePID.P;
-                    DistancePID.D = C.DistancePID.D;
-                }
-                if(cur_vel > 0)
-                {
-                    var mg2 = VSL.Physics.mg*VSL.Physics.mg;
-                    var brake_thrust = Mathf.Min(VSL.Physics.mg, VSL.Engines.MaxThrustM/2*VSL.OnPlanetParams.TWRf);
-                    var max_thrust = Mathf.Min(Mathf.Sqrt(brake_thrust*brake_thrust + mg2), VSL.Engines.MaxThrustM*0.99f);
-                    var horizontal_thrust = VSL.Engines.TranslationThrustLimits.Project(VSL.LocalDir(vdir)).magnitude;
-                    if(horizontal_thrust > brake_thrust) brake_thrust = horizontal_thrust;
-                    else horizontal_thrust = -1;
-                    if(brake_thrust > 0)
-                    {
-                        var brake_accel = brake_thrust/VSL.Physics.M;
-                        var prep_time = 0f;
-                        if(horizontal_thrust < 0) 
-                        {
-                            var brake_angle = Utils.Angle2(VSL.Engines.CurrentDefThrustDir, vdir)-45;
-                            if(brake_angle > 0)
-                            {
-                                //count rotation of the vessel to braking position
-                                var axis = Vector3.Cross(VSL.Engines.CurrentDefThrustDir, vdir);
-                                if(VSL.Torque.Slow)
-                                {
-                                    prep_time = VSL.Torque.NoEngines.RotationTime3Phase(brake_angle, axis, C.RotationAccelPhase);
-                                    //also count time needed for the engines to get to full thrust
-                                    prep_time += Utils.LerpTime(VSL.Engines.Thrust.magnitude, VSL.Engines.MaxThrustM, max_thrust, VSL.Engines.AccelerationSpeed);
-                                }
-                                else 
-                                    prep_time = VSL.Torque.MaxCurrent.RotationTime2Phase(brake_angle, axis, VSL.OnPlanetParams.GeeVSF);
-                            }
-                        }
-                        var prep_dist = cur_vel*prep_time+CFG.Target.AbsRadius;
-                        var eta = hdistance/cur_vel;
-                        max_speed.TauUp = C.MaxSpeedFilterUp/eta/brake_accel;
-                        max_speed.TauDown = eta*brake_accel/C.MaxSpeedFilterDown;
-                        max_speed.Update(prep_dist < hdistance?
-                                         (1+Mathf.Sqrt(1+2/brake_accel*(hdistance-prep_dist)))*brake_accel : 
-                                         2*brake_accel);
-                        CorrectionPID.Min = -VSL.HorizontalSpeed.Absolute;
-                        if(max_speed < cur_vel) 
-                            CorrectionPID.Update(max_speed-cur_vel);
-                        else
-                        {
-                            CorrectionPID.IntegralError *= (1-TimeWarp.fixedDeltaTime*C.CorrectionEasingRate);
-                            CorrectionPID.Update(0);
-                        }
-                        HSC.AddRawCorrection(CorrectionPID.Action*VSL.HorizontalSpeed.Vector.normalized);
-                    }
-                    if(max_speed < CFG.MaxNavSpeed)
-                        DistancePID.Max = Mathf.Max(DistancePID.Min, max_speed);
-                }
+                    hdistance = Utils.ClampL(hdistance-end_distance+VSL.Geometry.D, 0);
                 //take into account vertical distance and obstacle
                 var rel_ahead = VSL.Altitude.Ahead-VSL.Altitude.Absolute;
 //                Log("vdist {}, rel.ahead {}, vF {}, aF {}", vdistance, rel_ahead,
 //                    Utils.ClampL(1 - Mathf.Atan(vdistance/hdistance)/Utils.HalfPI, 0),
 //                    Utils.ClampL(1 - rel_ahead/RAD.DistanceAhead, 0));//debug
                 vdistance = Mathf.Max(vdistance, rel_ahead);
-                if(vdistance > 0)
-                    hdistance *= Utils.ClampL(1 - Mathf.Atan(vdistance/hdistance)/(float)Utils.HalfPI, 0);
-                if(RAD != null && rel_ahead > 0 && RAD.DistanceAhead > 0)
-                    hdistance *= Utils.ClampL(1 - rel_ahead/RAD.DistanceAhead, 0);
-                //update the needed velocity
+                if(CFG.MaxNavSpeed < 10) CFG.MaxNavSpeed = 10;
+                var targetVelocity = CFG.Target != null ? (Vector3d)CFG.Target.GetSrfVelocity() : Vector3d.zero;
+                if(Braking != null)
+                {
+                    Braking.Apply(vdir * hdistance,
+                        targetVelocity,
+                        CFG.MaxNavSpeed,
+                        0,
+                        vdistance,
+                        RAD != null && rel_ahead > 0 && RAD.DistanceAhead > 0 ? rel_ahead : 0);
+                    return;
+                }
                 DistancePID.Update(hdistance);
-                var nV = vdir*DistancePID.Action;
-                //correcto for Follow Target program
-                if(CFG.Nav[Navigation.FollowTarget] && Vector3d.Dot(tvel, vdir) > 0) nV += tvel;
-                VSL.HorizontalSpeed.SetNeeded(nV);
+                VSL.HorizontalSpeed.SetNeeded(vdir*DistancePID.Action);
             }
-            //correct for lateral movement
-            var latV = -Vector3d.Exclude(vdir, VSL.HorizontalSpeed.Vector);
-            var latF = (float)Math.Min((latV.magnitude/Math.Max(VSL.HorizontalSpeed.Absolute, 0.1)), 1);
-            LateralPID.P = C.LateralPID.P*latF;
-            LateralPID.I = Math.Min(C.LateralPID.I, latF);
-            LateralPID.D = C.LateralPID.D*latF;
-            LateralPID.Update(latV);
-            HSC.AddWeightedCorrection(LateralPID.Action);
 //            Log("\ndir v {}\nlat v {}\nact v {}\nlatPID {}", 
 //                 VSL.HorizontalSpeed.NeededVector, latV,
 //                 LateralPID.Action, LateralPID);//debug
         }
 
-        #if DEBUG
-        public void RadarBeam()
-        {
-            if(VSL == null || VSL.vessel == null) return;
-            if(CFG.Target && CFG.Target.GetTransform() != null && CFG.Nav[Navigation.FollowTarget])
-                Utils.GLLine(VSL.Physics.wCoM, CFG.Target.GetTransform().position+formation_offset,
-                               Maneuvering? Color.yellow : Color.cyan);
-        }
-        #endif
-    }
-
-    public class FormationNode
-    {
-        public readonly Vessel Target;
-        public readonly int Index;
-        public Vector3 Offset { get; private set; }
-        public Vessel Follower;
-
-        public FormationNode(Vessel target, int i, Vector3 forward, Vector3 side, float dist)
-        {
-            Index = i+1;
-            Target = target;
-            Update(forward, side, dist);
-        }
-
-        public void Update(Vector3 forward, Vector3 side, float dist)
-        {
-            if(Index % 2 == 0) Offset = (forward+side)*dist*Index/2;
-            else Offset = (forward-side)*dist*(Index+1)/2;
-        }
-
-        public float Distance(Vessel vsl)
-        { return (vsl.transform.position - Target.transform.position - Offset).magnitude; }
-
-        public override string ToString()
-        {
-            return string.Format("[{0}]: Target {1}, Follower {2}, Offset {3}", 
-                                 Index, Target.vesselName, Follower == null? "empty" : Follower.vesselName, Offset);
-        }
     }
 }
 

@@ -16,6 +16,7 @@ namespace ThrottleControlledAvionics
         public OrbitalTab(ModuleTCA tca) : base(tca) {}
 
         MatchVelocityAutopilot MVA;
+        ManeuverPlanner MPL;
         DeorbitAutopilot DEO;
         RendezvousAutopilot REN;
         ToOrbitAutopilot ORB;
@@ -32,14 +33,20 @@ namespace ThrottleControlledAvionics
         {
             GUILayout.BeginHorizontal();
             if(MVA != null) MVA.Draw();
+            else Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
             if(PN  != null && UI.NAV != null) 
                 UI.NAV.TargetUI();
             GUILayout.BeginHorizontal();
-            if(ORB != null) ORB.Draw();
-            if(REN != null) REN.Draw();
-            if(DEO != null) DEO.Draw();
+            var drew_orbital = false;
+            if(MPL != null) { MPL.Draw(); drew_orbital = true; }
+            if(ORB != null) { ORB.Draw(); drew_orbital = true; }
+            if(REN != null) { REN.Draw(); drew_orbital = true; }
+            if(DEO != null) { DEO.Draw(); drew_orbital = true; }
+            if(!drew_orbital) Utils.EnsureLayoutControl();
             GUILayout.EndHorizontal();
+            if(MPL != null && MPL.ShowOptions && MPL.ControlsActive)
+                MPL.DrawOptions();
             if(ORB != null && ORB.ShowOptions && ORB.ControlsActive)
                 ORB.DrawOptions();
             if(REN != null && REN.ShowOptions && REN.ControlsActive)

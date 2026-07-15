@@ -325,7 +325,14 @@ namespace ThrottleControlledAvionics
         public void ActivateLaunchClamps()
         {
             if(HaveLaunchClamps)
+            {
+                if(!VSL.Engines.AutostageEngineReady)
+                {
+                    VSL.Engines.ActivateEngines();
+                    return;
+                }
                 LaunchClamps.ForEach(cl => cl.Release());
+            }
         }
 
         public class Parachute : VesselProps

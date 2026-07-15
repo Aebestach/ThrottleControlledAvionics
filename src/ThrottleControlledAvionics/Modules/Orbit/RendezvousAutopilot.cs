@@ -200,6 +200,24 @@ namespace ThrottleControlledAvionics
                 Status(Colors.Warning, Loc.T("Rendezvous_TargetLanded", "Target is landed"));
                 return false;
             }
+            if(!VSL.OnPlanet)
+            {
+                if(DiscontinuousOrbit(LastOrbit(VesselOrbit)))
+                {
+                    Status(Colors.Warning,
+                        Loc.T("Rendezvous_DiscontinuousOrbit", "Ship's orbit is discontinuous.\n"
+                        + "Cannot perform rendezvous from an unstable orbit."));
+                    return false;
+                }
+                if(VesselOrbit.eccentricity >= 1
+                   && VesselOrbit.patchEndTransition == Orbit.PatchTransitionType.FINAL)
+                {
+                    Status(Colors.Warning,
+                        Loc.T("Rendezvous_HyperbolicOrbit", "Ship is on a hyperbolic trajectory.\n"
+                        + "Capture into orbit or wait for a stable orbit before rendezvous."));
+                    return false;
+                }
+            }
             if(!VSL.OnPlanet
                && VesselOrbit.patchEndTransition == Orbit.PatchTransitionType.FINAL
                && TargetOrbit.patchEndTransition == Orbit.PatchTransitionType.FINAL
@@ -216,9 +234,9 @@ namespace ThrottleControlledAvionics
                 else if(dInc > C.MaxInclinationDelta)
                 {
                     Status(Colors.Warning,
-                        Loc.F("Rendezvous_InclinationDelta", "Target orbit plane is tilted more than {0:F}° with respect to ours.\n"
-                        + "You need to change orbit plane before the rendezvou maneuver.",
-                        C.MaxInclinationDelta));
+                        Loc.F("Rendezvous_InclinationDelta", "Target orbit plane is tilted more than <<1>>° with respect to ours.\n"
+                        + "You need to change orbit plane before the rendezvous maneuver.",
+                        C.MaxInclinationDelta.ToString("F")));
                     return false;
                 }
             }
@@ -514,10 +532,20 @@ namespace ThrottleControlledAvionics
 
         ComputationBalancer.Task launch_window_calculator;
 
+        void cancel_launch_window_calculator()
+        {
+            if(launch_window_calculator == null) return;
+            launch_window_calculator.canceled = true;
+            launch_window_calculator = null;
+        }
+
         IEnumerator<int> calculate_launch_window()
         {
+            var task = launch_window_calculator;
+            bool aborted() => task.canceled || !CFG.AP2[Autopilot2.Rendezvous];
             ToOrbit.Reset();
             sim.Init();
+            if(aborted()) yield break;
             Launch best = null;
             var minApR = ToOrbit.MinApR;
             var maxApR = ToOrbit.MaxApR;
@@ -541,9 +569,10 @@ namespace ThrottleControlledAvionics
                 Launch cur = null;
                 while(startUT < endUT)
                 {
-                    Status(Loc.F("Rendezvous_SearchLaunchWindows", "{0} searching for possible launch windows:{1:F0}",
+                    if(aborted()) yield break;
+                    Status(Loc.F("Rendezvous_SearchLaunchWindows", "<<1>> searching for possible launch windows: <<2>>",
                         ProgressIndicator.Get,
-                        (endUT - startUT) / dT));
+                        ((endUT - startUT) / dT).ToString("F0")));
 #if DEBUG
                     if(setp_by_step_computation && !string.IsNullOrEmpty(TCAGui.StatusMessage))
                     {
@@ -558,7 +587,10 @@ namespace ThrottleControlledAvionics
                         maxApR,
                         ApAArc);
                     foreach(var t in cur.CalculateTransfer())
+                    {
+                        if(aborted()) yield break;
                         yield return 0;
+                    }
                     minDis.Update(cur.Dist);
                     if(minDis)
                         minima.Add(startUT);
@@ -578,7 +610,8 @@ namespace ThrottleControlledAvionics
                     dT = 100;
                     while(Math.Abs(dT) > 0.01)
                     {
-                        Status(Loc.F("Rendezvous_CheckLaunchWindows", "{0} checking possible launch windows: {1}/{2}",
+                        if(aborted()) yield break;
+                        Status(Loc.F("Rendezvous_CheckLaunchWindows", "<<1>> checking possible launch windows: <<2>>/<<3>>",
                             ProgressIndicator.Get,
                             i + 1,
                             minimaCount));
@@ -596,12 +629,16 @@ namespace ThrottleControlledAvionics
                             maxApR,
                             ApAArc);
                         foreach(var t in cur.CalculateTransfer())
+                        {
+                            if(aborted()) yield break;
                             yield return 0;
+                        }
                         if(min == null || cur < min)
                             min = cur;
                         startUT += dT;
                         if(startUT < VSL.Physics.UT || startUT > endUT || cur != min)
                         {
+                            if(min == null) break;
                             dT /= -2.1;
                             startUT = Utils.Clamp(min.UT + dT, VSL.Physics.UT, endUT);
                         }
@@ -642,11 +679,12 @@ namespace ThrottleControlledAvionics
                     proj_angle = projection_angle(in_plane_UT);
                     while(Math.Abs(proj_angle) > 30 && in_plane_UT - VSL.Physics.UT < maxT)
                     {
+                        if(aborted()) yield break;
                         //Log("proj_angle {}, time2launch {}", 
                         //proj_anlgle, in_plane_UT-VSL.Physics.UT);//debug
-                        Status(Loc.F("Rendezvous_ChooseLaunchWindow", "{0} choosing optimal in-plane launch window: {1:P0}",
+                        Status(Loc.F("Rendezvous_ChooseLaunchWindow", "<<1>> choosing optimal in-plane launch window: <<2>>",
                             ProgressIndicator.Get,
-                            (in_plane_UT - VSL.Physics.UT) / maxT));
+                            ((in_plane_UT - VSL.Physics.UT) / maxT).ToString("P0")));
                         yield return 0;
                         in_plane_UT = findInPlaneUT(in_plane_UT + Body.rotationPeriod / 2,
                             Body.rotationPeriod / 10);
@@ -665,6 +703,7 @@ namespace ThrottleControlledAvionics
             }
             else
                 ToOrbit.ApAUT = best.UT + best.Transfer;
+            if(aborted() || best == null) yield break;
             ToOrbit.LaunchUT = best.UT;
             ToOrbit.Target = best.ApV;
         }
@@ -799,6 +838,7 @@ namespace ThrottleControlledAvionics
         protected override void Reset()
         {
             base.Reset();
+            cancel_launch_window_calculator();
             stage = Stage.None;
             CorrectingManeuver = false;
             CurrentDistance = -1;
@@ -969,11 +1009,8 @@ namespace ThrottleControlledAvionics
                     }
                     break;
                 case Stage.ComputeCorrection:
-                    if(TimeWarp.CurrentRateIndex == 0 && TimeWarp.CurrentRate > 1)
-                    {
-                        TmpStatus(Loc.T("Rendezvous_WaitWarp", "Waiting for Time Warp to end..."));
+                    if(!VSL.Controls.PhysicsReady)
                         break;
-                    }
                     if(!trajectory_computed())
                         break;
                     if(!trajectory.KillerOrbit
@@ -1064,9 +1101,9 @@ namespace ThrottleControlledAvionics
                             if(threshold > 0)
                             {
                                 TmpStatus(Loc.F("Rendezvous_ProximityAlert", "Matching orbits at nearest approach...\n"
-                                          + "{0} Clearence {1:F1} m",
+                                          + "<<1>> Clearance <<2>> m",
                                     Colors.Warning.Tag("<b>PROXIMITY ALERT!</b>"),
-                                    trajectory.DistanceToTarget));
+                                    trajectory.DistanceToTarget.ToString("F1")));
                                 var correction =
                                     Vector3d.Exclude(RelPos, -trajectory.AtTargetRelPos).normalized
                                     * threshold
@@ -1245,30 +1282,18 @@ namespace ThrottleControlledAvionics
                     ToOrbit.DrawOptions();
                 else
                 {
-                    GUILayout.BeginHorizontal();
-                    GUILayout.BeginVertical();
-                    GUILayout.Label(Loc.Content("Rendezvous_GravityTurnSharpness", "Gravity Turn Sharpness:",
+                    draw_float_option(Loc.Content("Rendezvous_GravityTurnSharpness", "Gravity Turn Sharpness:",
                             "Rendezvous_GravityTurnSharpness_Tooltip",
-                            "How sharp the gravity turn will be. "
-                            + "Used only when direct rendezvous is possible."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("Rendezvous_MaxDistance", "Max. Distance:",
+                            "How sharp the gravity turn will be. Used only when direct rendezvous is possible."),
+                        Steepness, "%", 5, "F0");
+                    draw_float_option(Loc.Content("Rendezvous_MaxDistance", "Max. Distance:",
                             "Rendezvous_MaxDistance_Tooltip",
                             "Maximum allowed distance to the target at apoapsis."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("Rendezvous_MaxInclinationDelta", "Max. Inclination Delta:",
+                        MaxDist, "km", 5, "F0");
+                    draw_float_option(Loc.Content("Rendezvous_MaxInclinationDelta", "Max. Inclination Delta:",
                             "Rendezvous_MaxInclinationDelta_Tooltip",
-                            "Maximum allowed difference between initial "
-                            + "vessel orbit and target orbit. If that requirement "
-                            + "is not met, launch in plane with the target orbit."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.EndVertical();
-                    GUILayout.BeginVertical();
-                    Steepness.Draw("%", 5, "F0", suffix_width: 25);
-                    MaxDist.Draw("km", 5, "F0", suffix_width: 25);
-                    IncDelta.Draw("°", 1, "F0", suffix_width: 25);
-                    GUILayout.EndVertical();
-                    GUILayout.EndHorizontal();
+                            "Maximum allowed difference between initial vessel orbit and target orbit. If that requirement is not met, launch in plane with the target orbit."),
+                        IncDelta, "°", 1, "F0");
                 }
                 StartInPlane = in_plane;
             }
@@ -1280,7 +1305,7 @@ namespace ThrottleControlledAvionics
                     GUILayout.ExpandWidth(true));
                 if(!VSL.LandedOrSplashed && HardMaxStart)
                 {
-                    GUILayout.Label(new GUIContent(Loc.F("Rendezvous_MaxDaysStartValue", "Max. Days to Start: {0:F0} d", MaxDays.Value),
+                    GUILayout.Label(new GUIContent(Loc.F("Rendezvous_MaxDaysStartValue", "Max. Days to Start: <<1>> d", MaxDays.Value.ToString("F0")),
                             Loc.T("Rendezvous_MaxDaysStartValue_Tooltip", "Maximum time allowed before the first maneuver.")),
                         Styles.inactive,
                         GUILayout.ExpandWidth(true));
@@ -1326,6 +1351,14 @@ namespace ThrottleControlledAvionics
                     GUILayout.Width(60)))
                     CFG.AP2.XOn(Autopilot2.Rendezvous);
             }
+            GUILayout.EndHorizontal();
+        }
+
+        static void draw_float_option(GUIContent label, FloatField field, string suffix, float step, string format)
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(label, GUILayout.Width(165));
+            field.Draw(suffix, step, format, suffix_width: 25);
             GUILayout.EndHorizontal();
         }
 

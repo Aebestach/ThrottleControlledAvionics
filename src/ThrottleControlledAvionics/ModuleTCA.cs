@@ -666,6 +666,11 @@ namespace ThrottleControlledAvionics
                 if(VSL.Engines.Check()) SetState(TCAState.HaveActiveEngines);
                 Actions["onActionUpdate"].actionGroup = VSL.Engines.ActionGroups;
                 VSL.UpdateEngines();
+                var wrp = GetModule<TimeWarpControl>();
+                if(wrp != null)
+                    wrp.UpdatePhysicsReadyState();
+                else
+                    TimeWarpControl.UpdatePhysicsReadyFallback(VSL.Controls);
                 //update modules
                 ModulePipeline.ForEach(m => m.OnFixedUpdate());
                 VSL.OnModulesUpdated();

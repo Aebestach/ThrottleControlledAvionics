@@ -94,6 +94,12 @@ namespace ThrottleControlledAvionics
         public override bool AddSibling(MacroNode sibling)
         { return AddChild(sibling); }
 
+        public override void CommitEdits()
+        {
+            for(int i = 0, count = Subnodes.Count; i < count; i++)
+                Subnodes[i].CommitEdits();
+        }
+
         public bool MoveLeft(int i)
         {
             if(i < 0 || i >= Subnodes.Count) return false;

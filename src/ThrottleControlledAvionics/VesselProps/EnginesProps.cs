@@ -519,18 +519,32 @@ namespace ThrottleControlledAvionics
             //init RCS wrappers and calculate MaxThrust taking torque imbalance into account
             MaxThrustRCS = new Vector6();
             var RCSThrustImbalance = new Vector3[6];
+            var max_lever = 0f;
             for(int i = 0; i < NumActiveRCS; i++)
             {
                 var t = ActiveRCS[i];
                 t.InitState();
-                for(int j = 0, tCount = t.rcs.thrusterTransforms.Count; j < tCount; j++)
+                for(int j = 0, tCount = t.Thrusters.Count; j < tCount; j++)
                 {
-                    var T = t.rcs.thrusterTransforms[j];
-                    if(!RCSWrapper.IsThrusterActive(T))
+                    var thruster = t.Thrusters[j];
+                    if(thruster.Active)
+                        max_lever = Mathf.Max(max_lever, (thruster.WorldPosition - VSL.Physics.wCoM).magnitude);
+                }
+            }
+            max_lever = Mathf.Max(max_lever, VSL.Geometry.R, 1e-3f);
+            for(int i = 0; i < NumActiveRCS; i++)
+            {
+                var t = ActiveRCS[i];
+                t.InitTorque(VSL, RCSOptimizer.C.TorqueRatioFactor, max_lever, RCSOptimizer.C.LeverWeightPower);
+                t.ApplyPreset();
+                for(int j = 0, tCount = t.Thrusters.Count; j < tCount; j++)
+                {
+                    var thruster = t.Thrusters[j];
+                    if(!thruster.Active)
                         continue;
-                    var thrust = refT.InverseTransformDirection((t.rcs.useZaxis ? T.forward : T.up) * t.maxThrust);
+                    var thrust = thruster.LocalThrust * t.limit;
                     MaxThrustRCS.Add(thrust);
-                    var pos = refT.InverseTransformDirection(T.position - VSL.Physics.wCoM);
+                    var pos = thruster.LocalLever;
                     var athrust = Vector3.zero;
                     for(int k = 0; k < 3; k++)
                     {
@@ -540,9 +554,7 @@ namespace ThrottleControlledAvionics
                         athrust[k] = 0;
                     }
                 }
-                t.InitTorque(VSL, RCSOptimizer.C.TorqueRatioFactor);
                 t.UpdateCurrentTorque(1);
-                t.ApplyPreset();
             }
             if(!MaxThrustRCS.IsZero())
                 MaxThrustRCS.Scale(new Vector6(
@@ -670,10 +682,35 @@ namespace ThrottleControlledAvionics
             }
         }
 
+        static bool is_auto_stage_engine(EngineWrapper e)
+        {
+            return e.Role != TCARole.MANEUVER && e.Role != TCARole.MANUAL;
+        }
+
+        bool stage_has_auto_stage_engines(int stage)
+        {
+            return stage >= 0 && All.Any(e => is_auto_stage_engine(e) && e.part.inverseStage == stage);
+        }
+
+        bool next_stage_has_auto_stage_engines()
+        {
+            return stage_has_auto_stage_engines(VSL.NextStageToActivate());
+        }
+
+        public bool AutostageEngineReady
+        {
+            get
+            {
+                return Active.Any(e => is_auto_stage_engine(e)
+                                       && e.engine.EngineIgnited
+                                       && !e.engine.flameout);
+            }
+        }
+
         public bool ActivateInactiveEngines() 
         { 
             if(CFG.AutoStage && NoActiveEngines && HaveNextStageEngines)
-            { VSL.ActivateNextStage(); return true; }
+                return VSL.RequestAutoStage(next_stage_has_auto_stage_engines());
             return false;
         }
 
@@ -681,10 +718,10 @@ namespace ThrottleControlledAvionics
         {
 //            Log("NoActiveEngines {}, HaveThrusters {}, HaveNextStage {}", NoActiveEngines, HaveThrusters, HaveNextStageEngines);//debug
             if(!CFG.AutoStage || !HaveNextStageEngines) return false;
-            var this_engines = All.Where(e => e.Role != TCARole.MANEUVER && e.part.inverseStage >= vessel.currentStage).ToList();
+            var this_engines = All.Where(e => is_auto_stage_engine(e) && e.part.inverseStage >= vessel.currentStage).ToList();
 //            Log("this stage engines: {}", this_engines);//debug
-            if(this_engines.Count == 0 || this_engines.Any(e => e.engine.flameout))
-            { VSL.ActivateNextStage(); return true; }
+            if(this_engines.Count == 0 || this_engines.All(e => e.engine.flameout))
+                return VSL.RequestAutoStage(next_stage_has_auto_stage_engines());
             return false;
         }
         public bool ActivateEngines()

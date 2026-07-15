@@ -84,19 +84,98 @@ namespace ThrottleControlledAvionics
         }
     }
 
+    public class RCSThruster
+    {
+        public readonly RCSWrapper Owner;
+
+        public int Index { get; private set; }
+        public Transform Transform { get; private set; }
+        public bool Active { get; private set; }
+        public bool Contributes { get; private set; }
+        public Vector3 WorldPosition { get; private set; }
+        public Vector3 WorldThrustDir { get; private set; }
+        public Vector3 WorldLever { get; private set; }
+        public Vector3 LocalLever { get; private set; }
+        public Vector3 LocalThrustDir { get; private set; }
+        public Vector3 LocalThrust { get; private set; }
+        public Vector3 SpecificTorque { get; private set; }
+        public Vector3 MaxTorque { get; private set; }
+        public float CurrentThrust { get; private set; }
+        public float MaxThrust { get; private set; }
+        public float LeverMagnitude { get; private set; }
+        public float RelativeLever { get; private set; } = 1;
+        public float LeverWeight { get; private set; } = 1;
+
+        public RCSThruster(RCSWrapper owner)
+        { Owner = owner; }
+
+        public void UpdateState(int index)
+        {
+            Index = index;
+            var rcs = Owner.rcs;
+            Transform = index < rcs.thrusterTransforms.Count ? rcs.thrusterTransforms[index] : null;
+            CurrentThrust = index < rcs.thrustForces.Length ? rcs.thrustForces[index] : 0;
+            MaxThrust = Owner.maxThrust;
+            Active = Transform != null && RCSWrapper.IsThrusterActive(Transform);
+            Contributes = Active && CurrentThrust > 0;
+            if(!Active)
+            {
+                WorldPosition = Vector3.zero;
+                WorldThrustDir = Vector3.zero;
+                Contributes = false;
+                return;
+            }
+            WorldPosition = Transform.position;
+            WorldThrustDir = (rcs.useZaxis ? Transform.forward : Transform.up).normalized;
+        }
+
+        public void InitGeometry(Transform vesselTransform, Vector3 CoM, float maxLever, float leverWeightPower)
+        {
+            if(!Active)
+            {
+                WorldLever = LocalLever = LocalThrustDir = LocalThrust = SpecificTorque = MaxTorque = Vector3.zero;
+                LeverMagnitude = 0;
+                RelativeLever = LeverWeight = 0;
+                return;
+            }
+            WorldLever = WorldPosition - CoM;
+            LocalLever = vesselTransform.InverseTransformDirection(WorldLever);
+            LocalThrustDir = vesselTransform.InverseTransformDirection(WorldThrustDir);
+            LocalThrust = LocalThrustDir * MaxThrust;
+            SpecificTorque = vesselTransform.InverseTransformDirection(Vector3.Cross(WorldLever, WorldThrustDir));
+            MaxTorque = SpecificTorque * MaxThrust;
+            LeverMagnitude = WorldLever.magnitude;
+            RelativeLever = maxLever > 0 ? Mathf.Clamp01(LeverMagnitude / maxLever) : 1;
+            LeverWeight = Mathf.Pow(RelativeLever, Mathf.Max(leverWeightPower, 0));
+        }
+    }
+
     public class RCSWrapper : ThrusterWrapper
     {
         public readonly ModuleRCS rcs;
+        public readonly List<RCSThruster> Thrusters = new List<RCSThruster>();
 
         Vector3 total_thrust_dir;
         Vector3 avg_thrust_pos;
+        Vector3 max_thrust;
+        Vector3 max_torque;
         float current_thrust;
         float current_max_thrust;
+        float effective_lever_weight = 1;
 
         public RCSWrapper(ModuleRCS rcs)
         {
             zeroIsp = rcs.atmosphereCurve.Evaluate(0f);
             this.rcs = rcs;
+        }
+
+        void ensure_thrusters()
+        {
+            var count = rcs.thrusterTransforms.Count;
+            while(Thrusters.Count < count)
+                Thrusters.Add(new RCSThruster(this));
+            while(Thrusters.Count > count)
+                Thrusters.RemoveAt(Thrusters.Count - 1);
         }
 
         public static bool IsThrusterActive(Transform thruster)
@@ -106,9 +185,11 @@ namespace ThrottleControlledAvionics
 
         public bool HasActiveThrusters()
         {
-            for(int i = 0, count = rcs.thrusterTransforms.Count; i < count; i++)
+            ensure_thrusters();
+            for(int i = 0, count = Thrusters.Count; i < count; i++)
             {
-                if(IsThrusterActive(rcs.thrusterTransforms[i]))
+                Thrusters[i].UpdateState(i);
+                if(Thrusters[i].Active)
                     return true;
             }
             return false;
@@ -121,25 +202,62 @@ namespace ThrottleControlledAvionics
         {
             thrustMod = rcs.atmosphereCurve.Evaluate((float)(rcs.part.staticPressureAtm)) / zeroIsp;
             var total_thrust = 0f;
+            var total_max_thrust = 0f;
+            var current_thrust_dir = Vector3.zero;
             total_thrust_dir = Vector3.zero;
             avg_thrust_pos = Vector3.zero;
-            for(int i = 0, count = rcs.thrusterTransforms.Count; i < count; i++)
+            max_thrust = Vector3.zero;
+            max_torque = Vector3.zero;
+            ensure_thrusters();
+            for(int i = 0, count = Thrusters.Count; i < count; i++)
             {
-                var thrust = rcs.thrustForces[i];
-                var T = rcs.thrusterTransforms[i];
-                if(T == null || thrust.Equals(0) || !IsThrusterActive(T)) continue;
-                total_thrust_dir += (rcs.useZaxis ? T.forward : T.up) * thrust;
-                avg_thrust_pos += T.position * thrust;
-                total_thrust += thrust;
+                var thruster = Thrusters[i];
+                thruster.UpdateState(i);
+                if(!thruster.Contributes) continue;
+                current_thrust_dir += thruster.WorldThrustDir * thruster.CurrentThrust;
+                total_thrust_dir += thruster.WorldThrustDir * thruster.MaxThrust;
+                avg_thrust_pos += thruster.WorldPosition * thruster.MaxThrust;
+                total_thrust += thruster.CurrentThrust;
+                total_max_thrust += thruster.MaxThrust;
             }
-            current_thrust = total_thrust_dir.magnitude;
-            if(total_thrust > 0) avg_thrust_pos /= total_thrust;
+            current_thrust = current_thrust_dir.magnitude;
+            current_max_thrust = total_max_thrust;
+            max_thrust = total_thrust_dir;
+            if(total_max_thrust > 0) avg_thrust_pos /= total_max_thrust;
             else avg_thrust_pos = rcs.transform.position;
             total_thrust_dir.Normalize();
-            current_max_thrust = rcs.thrustPercentage > 0
-                ? current_thrust / rcs.thrustPercentage * 100f
-                : 0;
             InitLimits();
+        }
+
+        public void InitTorque(VesselWrapper VSL, float ratio_factor, float maxLever, float leverWeightPower)
+        { InitTorque(VSL.refT, VSL.Physics.wCoM, VSL.Physics.M, VSL.Physics.MoI, ratio_factor, maxLever, leverWeightPower); }
+
+        public void InitTorque(Transform vesselTransform,
+                               Vector3 CoM,
+                               float mass,
+                               Vector3 MoI,
+                               float ratio_factor,
+                               float maxLever,
+                               float leverWeightPower)
+        {
+            wThrustLever = wThrustPos - CoM;
+            thrustDirection = vesselTransform.InverseTransformDirection(wThrustDir);
+            var weightedLever = 0f;
+            var torqueWeight = 0f;
+            max_torque = Vector3.zero;
+            for(int i = 0, count = Thrusters.Count; i < count; i++)
+            {
+                var thruster = Thrusters[i];
+                thruster.InitGeometry(vesselTransform, CoM, maxLever, leverWeightPower);
+                if(!thruster.Contributes) continue;
+                max_torque += thruster.MaxTorque;
+                var weight = thruster.MaxTorque.magnitude;
+                weightedLever += thruster.LeverWeight * weight;
+                torqueWeight += weight;
+            }
+            effective_lever_weight = torqueWeight > 0 ? Mathf.Clamp01(weightedLever / torqueWeight) : 1;
+            specificTorque = current_max_thrust > 0 ? max_torque / current_max_thrust : Vector3.zero;
+            torqueRatio = computeTorqueRatio(wThrustLever, wThrustDir, specificTorque, mass, MoI, ratio_factor, out thrustRatio);
         }
 
         public override void RestoreState()
@@ -149,7 +267,7 @@ namespace ThrottleControlledAvionics
 
         public override void UpdateCurrentTorque(float throttle)
         {
-            currentTorque = Torque(throttle);
+            currentTorque = max_torque * throttle;
             currentTorque_m = currentTorque.magnitude;
         }
 
@@ -162,9 +280,15 @@ namespace ThrottleControlledAvionics
         public float currentMaxThrust { get { return current_max_thrust; } }
         public override float finalThrust { get { return current_thrust; } }
         public float maxThrust { get { return rcs.thrusterPower * thrustMod; } }
+        public Vector3 MaxThrust { get { return max_thrust; } }
+        public Vector3 MaxTorque { get { return max_torque; } }
+        public float EffectiveLeverWeight { get { return effective_lever_weight; } }
+        public float ShortLeverPenalty { get { return 1 - effective_lever_weight; } }
 
         public override float ThrustM(float throttle)
         { return current_max_thrust * throttle; }
+        public Vector3 ThrustVector(float throttle)
+        { return max_thrust * throttle; }
 
         public override float thrustLimit
         {

@@ -70,6 +70,36 @@ namespace ThrottleControlledAvionics
                  o.patchEndTransition == Orbit.PatchTransitionType.IMPACT);
         }
 
+        /// <summary>
+        /// Returns a finite absolute UT for nearest-approach search starting at fromUT.
+        /// Hyperbolic and SOI-transition patches may have infinite EndUT; cap the search window.
+        /// </summary>
+        public static double OrbitSearchEndUT(Orbit orb, double fromUT)
+        {
+            if(orb == null)
+                return fromUT + 86400;
+            orb = NextOrbit(orb, fromUT);
+            var endUT = orb.GetEndUT();
+            if(endUT > fromUT && !double.IsInfinity(endUT) && !double.IsNaN(endUT))
+                return endUT;
+            if(orb.eccentricity < 1 && orb.period > 0 && !double.IsInfinity(orb.period))
+                return fromUT + orb.period;
+            var peUT = orb.StartUT + orb.timeToPe;
+            if(double.IsNaN(peUT) || double.IsInfinity(peUT))
+                peUT = fromUT;
+            if(peUT < fromUT)
+                peUT = fromUT;
+            var speed = orb.getOrbitalVelocityAtUT(fromUT).magnitude;
+            if(speed < 1)
+                speed = 1;
+            var body = orb.referenceBody;
+            var horizon = body != null ? body.sphereOfInfluence / speed : 3600;
+            return peUT + Utils.Clamp(horizon, 3600, 86400 * 7);
+        }
+
+        static bool IsValidSearchUT(double UT) =>
+            !double.IsNaN(UT) && !double.IsInfinity(UT) && UT >= 0;
+
         protected Vector3d hV(double UT) { return VesselOrbit.hV(UT); }
 
         protected bool LiftoffPossible
@@ -508,45 +538,59 @@ namespace ThrottleControlledAvionics
         }
 
         public static double SqrDistAtUT(Orbit a, Orbit b, double UT)
-        { 
+        {
+            if(!IsValidSearchUT(UT))
+                return double.MaxValue;
             a = NextOrbit(a, UT); b = NextOrbit(b, UT);
-            return a.referenceBody == b.referenceBody ? 
-                (a.getRelativePositionAtUT(UT) - b.getRelativePositionAtUT(UT)).sqrMagnitude : 
+            var sq = a.referenceBody == b.referenceBody ?
+                (a.getRelativePositionAtUT(UT) - b.getRelativePositionAtUT(UT)).sqrMagnitude :
                 (a.getTruePositionAtUT(UT) - b.getTruePositionAtUT(UT)).sqrMagnitude;
+            return double.IsNaN(sq) || double.IsInfinity(sq) ? double.MaxValue : sq;
         }
 
         public static double ClosestApproach(Orbit a, Orbit t, double fromUT, double minDist, out double ApproachUT)
         {
             var minUT = fromUT;
-            var toUT = Math.Max(a.GetEndUT(), t.GetEndUT());
+            var toUT = Math.Max(OrbitSearchEndUT(a, fromUT), OrbitSearchEndUT(t, fromUT));
+            if(toUT <= fromUT)
+                toUT = fromUT + 3600;
 //            Utils.Log("a.endUT {}, t.endUT {}, toUT {}", a.GetEndUT(), t.GetEndUT(), toUT);//debug
-            if(!double.IsInfinity(toUT))
+            var dT = (toUT-fromUT)/10;
+            var minD  = double.MaxValue;
+            var UT = fromUT;
+            while(UT <= toUT)
             {
-                var dT = (toUT-fromUT)/10;
-                var minD  = double.MaxValue;
-                var UT = fromUT;
-                while(UT <= toUT)
-                {
-                    var d = SqrDistAtUT(a, t, UT);
+                var d = SqrDistAtUT(a, t, UT);
 //                    Utils.Log("Scan: d {} < minD {}, UT {}, minUT {}, dT {}", d, minD, UT, minUT, dT);//debug
-                    if(d < minD) { minD = d; minUT = UT; }
-                    UT += dT;
-                }
+                if(d < minD) { minD = d; minUT = UT; }
+                UT += dT;
             }
             return NearestApproach(a, t, minUT, fromUT, toUT, minDist, out ApproachUT);
         }
 
         public static double NearestApproach(Orbit a, Orbit t, double fromUT, double minDist, out double ApproachUT)
-        { return NearestApproach(a, t, fromUT, fromUT, fromUT+a.GetEndUT(), minDist, out ApproachUT); }
+        {
+            var toUT = Math.Max(OrbitSearchEndUT(a, fromUT), OrbitSearchEndUT(t, fromUT));
+            if(toUT <= fromUT)
+                toUT = fromUT + 3600;
+            return NearestApproach(a, t, fromUT, fromUT, toUT, minDist, out ApproachUT);
+        }
 
         public static double NearestApproach(Orbit a, Orbit t, double startUT, double fromUT, double toUT, double minDist, out double ApproachUT)
         {
+            if(!IsValidSearchUT(fromUT))
+                fromUT = a.StartUT;
+            if(!IsValidSearchUT(toUT) || toUT <= fromUT)
+                toUT = Math.Max(OrbitSearchEndUT(a, fromUT), OrbitSearchEndUT(t, fromUT));
+            if(toUT <= fromUT)
+                toUT = fromUT + 3600;
+            startUT = Utils.Clamp(startUT, fromUT, toUT);
             double UT = startUT;
             double dT = (toUT-fromUT)/10;
-            if(double.IsInfinity(dT))
+            if(dT <= 0 || double.IsInfinity(dT) || double.IsNaN(dT))
             {
-                dT = double.IsInfinity(a.period)
-                    ? double.IsInfinity(t.period)
+                dT = double.IsInfinity(a.period) || a.period <= 0
+                    ? double.IsInfinity(t.period) || t.period <= 0
                         ? 60 //slow but safe default
                         : t.period / 10
                     : a.period / 10;
@@ -559,6 +603,7 @@ namespace ThrottleControlledAvionics
             //search nearest point
             while(Math.Abs(dT) > 0.01)
             {
+                UT = Utils.Clamp(UT, fromUT, toUT);
                 var d = SqrDistAtUT(a, t, UT);
                 if(d < minD) { minD = d; minUT = UT; }
 //                Utils.Log("Search: d {} < minD {}, UT {}, minUT {}, dT {}", d, minD, UT, minUT, dT);//debug
@@ -731,7 +776,7 @@ namespace ThrottleControlledAvionics
             T t = null;
 
             var ioptimizer = optimizer.GetEnumerator();
-            Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
+            Status(Loc.F("Orbit_PushToContinue", "<<1>>\nPush to continue", optimizer.Status));
             while(true)
             {
                 current_landing_trajectory = t as LandingTrajectory;
@@ -744,7 +789,7 @@ namespace ThrottleControlledAvionics
                 I++;
                 if(t == null) 
                 {
-                    Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
+                    Status(Loc.F("Orbit_PushToContinue", "<<1>>\nPush to continue", optimizer.Status));
                     yield return t;
                     continue;
                 }
@@ -753,7 +798,7 @@ namespace ThrottleControlledAvionics
                 if(setp_by_step_computation) 
                 {
                     Log("Trajectory #{}\n{}", I, t);
-                    Status(Loc.F("Orbit_PushToContinue", "{0}\nPush to continue", optimizer.Status));
+                    Status(Loc.F("Orbit_PushToContinue", "<<1>>\nPush to continue", optimizer.Status));
                 }
                 else Status(optimizer.Status);
                 yield return t;

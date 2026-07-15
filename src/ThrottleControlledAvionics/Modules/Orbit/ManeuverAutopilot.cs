@@ -219,7 +219,7 @@ namespace ThrottleControlledAvionics
             //emergency dewarping
             if(!CFG.WarpToNode && TimeWarp.CurrentRate > 1 && VSL.Info.Countdown < TimeWarpControl.C.DewarpTime)
                 VSL.Controls.AbortWarp(true);
-            if(VSL.Info.Countdown > 0)
+            if(!VSL.Controls.PhysicsReady || VSL.Info.Countdown > 0)
                 return false;
 //            Log("burn {}, countdown {}", burn, VSL.Info.Countdown);//debug
             VSL.Info.Countdown = 0;

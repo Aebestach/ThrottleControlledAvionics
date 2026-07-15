@@ -59,11 +59,10 @@ namespace ThrottleControlledAvionics
             VSL.Engines.ActivateNextStageOnFlameout();
             update_state(Dtol);
             var pg_vel = get_pg_vel();
-            // if within error threshold, coast to circularization
-            if(ErrorThreshold)
-                return coast(pg_vel);
+            // Keep the same latched coast behavior as the untargeted ascent path.
+            if(ShouldCoast)
+                return coast(pg_vel, Dtol);
             // gravity turn proper
-            CircularizationOffset = -1;
             tune_THR();
             var startF = getStartF();
             var vel = TrajectoryCalculator.dV4ApV(VesselOrbit, target, VSL.Physics.UT);

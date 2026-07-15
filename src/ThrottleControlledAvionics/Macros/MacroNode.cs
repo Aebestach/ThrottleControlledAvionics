@@ -112,8 +112,11 @@ namespace ThrottleControlledAvionics
 
         public virtual void Rewind() { Active = Done = false; }
 
+        public virtual void CommitEdits() {}
+
         public void CopyFrom(MacroNode mn)
         {
+            mn.CommitEdits();
             var node = new ConfigNode();
             mn.Save(node);
             Load(node);

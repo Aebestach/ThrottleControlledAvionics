@@ -21,6 +21,8 @@ namespace ThrottleControlledAvionics
         public Bounds  B { get; private set; } //bounds, including exhaust tails
         public Vector3 C { get; private set; } //center
         public float   H { get; private set; } //height
+        public float   BottomH { get; private set; } //CoM-to-lowest physical collider distance
+        public bool    HavePhysicalBottom { get; private set; }
         public float   R { get; private set; } //radius
         public float   E { get; private set; } //radius including engines' exhaust
         public float   D { get; private set; } //diamiter
@@ -35,16 +37,65 @@ namespace ThrottleControlledAvionics
         double next_bounds_update = -1;
         bool bounds_dirty = true;
         Bounds cached_physical_bounds;
+        readonly List<Collider> cached_colliders = new List<Collider>();
         Transform cached_refT;
         const double BoundsUpdatePeriod = 0.25;
 
         public void InvalidateBounds() { bounds_dirty = true; }
 
         public float DistToBounds(Vector3 world_point)
-        { return Mathf.Sqrt(B.SqrDistance(refT.InverseTransformPoint(world_point))); }
+        {
+            if(refT == null)
+                return 0;
+            return Mathf.Sqrt(B.SqrDistance(refT.InverseTransformPoint(world_point)));
+        }
+
+        static float min_projection(Bounds b, Vector3 dir)
+        {
+            var min = b.min;
+            var max = b.max;
+            return Mathf.Min(
+                Vector3.Dot(new Vector3(min.x, min.y, min.z), dir),
+                Vector3.Dot(new Vector3(min.x, min.y, max.z), dir),
+                Vector3.Dot(new Vector3(min.x, max.y, min.z), dir),
+                Vector3.Dot(new Vector3(min.x, max.y, max.z), dir),
+                Vector3.Dot(new Vector3(max.x, min.y, min.z), dir),
+                Vector3.Dot(new Vector3(max.x, min.y, max.z), dir),
+                Vector3.Dot(new Vector3(max.x, max.y, min.z), dir),
+                Vector3.Dot(new Vector3(max.x, max.y, max.z), dir));
+        }
+
+        void update_physical_bottom()
+        {
+            BottomH = H;
+            HavePhysicalBottom = false;
+            if(cached_colliders.Count == 0)
+                return;
+            var up = (Vector3)VSL.Physics.Up;
+            var com = Vector3.Dot(VSL.Physics.wCoM, up);
+            var bottom = float.PositiveInfinity;
+            for(int i = cached_colliders.Count - 1; i >= 0; i--)
+            {
+                var c = cached_colliders[i];
+                if(c == null)
+                {
+                    cached_colliders.RemoveAt(i);
+                    continue;
+                }
+                if(!c.enabled || c.isTrigger || !c.gameObject.activeInHierarchy)
+                    continue;
+                bottom = Mathf.Min(bottom, min_projection(c.bounds, up));
+            }
+            if(float.IsPositiveInfinity(bottom))
+                return;
+            BottomH = Utils.ClampL(com - bottom, 0);
+            HavePhysicalBottom = true;
+        }
 
         void update_physical_props(Bounds b)
         {
+            if(refT == null || VSL.vessel == null)
+                return;
             C = refT.TransformPoint(b.center);
             RelC = C-VSL.vessel.CoM;
             H = Mathf.Abs(Vector3.Dot(refT.TransformDirection(b.extents), VSL.Physics.Up)) -
@@ -55,22 +106,53 @@ namespace ThrottleControlledAvionics
                                           b.extents.x*b.extents.z, //up
                                           b.extents.x*b.extents.y);//forward
             Area = (BoundsSideAreas.x+BoundsSideAreas.y+BoundsSideAreas.z)*2;
+            update_physical_bottom();
+        }
+
+        void update_colliders_cache()
+        {
+            cached_colliders.Clear();
+            var parts = vessel.Parts;
+            for(int i = 0, partsCount = parts.Count; i < partsCount; i++)
+            {
+                var p = parts[i];
+                if(p == null)
+                    continue;
+                var colliders = p.GetComponentsInChildren<Collider>();
+                for(int j = 0, collidersCount = colliders.Length; j < collidersCount; j++)
+                {
+                    var c = colliders[j];
+                    if(c != null && !c.isTrigger)
+                        cached_colliders.Add(c);
+                }
+            }
         }
 
         void update_bounds_cache()
         {
+            if(refT == null || vessel == null || !vessel.loaded)
+                return;
             //update physical bounds
             var b = vessel.Bounds(refT);
             cached_physical_bounds = b;
             cached_refT = refT;
+            update_colliders_cache();
             //update exhaust bounds
+            if(VSL.Engines?.All == null)
+            {
+                E = b.extents.magnitude;
+                B = b;
+                return;
+            }
             foreach(var e in VSL.Engines.All)
             {
-                if(!e.Valid(VSL) || !e.engine.exhaustDamage) continue;
+                if(e == null || e.engine == null || !e.Valid(VSL) || !e.engine.exhaustDamage)
+                    continue;
                 for(int k = 0, tCount = e.engine.thrustTransforms.Count; k < tCount; k++)
                 {
                     var t = e.engine.thrustTransforms[k];
-                    if(t == null) continue;
+                    if(t == null)
+                        continue;
                     var term = refT.InverseTransformPoint(t.position + t.forward * e.engine.exhaustDamageMaxRange*GLB.ExhaustSafeDist);
                     b.Encapsulate(term);
                 }
@@ -81,6 +163,8 @@ namespace ThrottleControlledAvionics
 
         public override void Update()
         {
+            if(refT == null || vessel == null || !vessel.loaded)
+                return;
             var parts_count = vessel.Parts.Count;
             var stage = vessel.currentStage;
             var engines_count = VSL.Engines.All.Count;

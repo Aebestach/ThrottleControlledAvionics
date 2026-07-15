@@ -43,6 +43,12 @@ namespace ThrottleControlledAvionics
             deleted_conditions.Clear();
         }
 
+        public override void CommitEdits()
+        {
+            for(int i = 0, count = Conditions.Count; i < count; i++)
+                Conditions[i].CommitEdits();
+        }
+
         protected override void DrawThis()
         {
             GUILayout.BeginVertical();

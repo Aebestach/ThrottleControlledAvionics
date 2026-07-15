@@ -138,16 +138,13 @@ namespace ThrottleControlledAvionics
                 for(int i = 0; i < VSL.Engines.NumActiveRCS; i++)
                 {
                     var r = VSL.Engines.ActiveRCS[i];
-                    for(int j = 0, tcount = r.rcs.thrusterTransforms.Count; j < tcount; j++)
+                    for(int j = 0, tcount = r.Thrusters.Count; j < tcount; j++)
                     {
-                        var t = r.rcs.thrusterTransforms[j];
-                        if(t == null || !RCSWrapper.IsThrusterActive(t))
+                        var t = r.Thrusters[j];
+                        if(!t.Active)
                             continue;
-                        var specificTorque = refT.InverseTransformDirection(
-                            Vector3.Cross(t.position - VSL.Physics.wCoM, 
-                                r.rcs.useZaxis ? t.forward : t.up));
-                        RCSLimits.Add(specificTorque * r.rcs.thrusterPower);
-                        RCSSpecificTorque.Add(specificTorque);
+                        RCSLimits.Add(t.MaxTorque);
+                        RCSSpecificTorque.Add(t.SpecificTorque);
                     }
                 }
             //wheels and control surfaces

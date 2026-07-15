@@ -270,11 +270,14 @@ namespace ThrottleControlledAvionics
         SurfaceNode center_node
         { get { return Nodes == null ? null : Nodes[center, center]; } }
 
+        float bottom_control_altitude(float bottom_altitude)
+        { return bottom_altitude >= 0 ? bottom_altitude + VSL.Geometry.BottomH : bottom_altitude; }
+
         void set_initial_altitude()
         {
             CFG.AltitudeAboveTerrain = true;
             VSL.Altitude.Update();
-            WideCheckAlt = Utils.Clamp(VSL.Altitude.Relative + VSL.VerticalSpeed.Absolute * 3,
+            WideCheckAlt = Utils.Clamp(VSL.Altitude.BottomRelative + VSL.VerticalSpeed.Absolute * 3,
                                        VSL.Geometry.D * 2, C.MaxStartAltitude);
         }
 
@@ -282,11 +285,11 @@ namespace ThrottleControlledAvionics
         {
             get
             {
-                var err = Mathf.Abs(VSL.Altitude.Relative - WideCheckAlt) / WideCheckAlt;
+                var err = Mathf.Abs(VSL.Altitude.BottomRelative - WideCheckAlt) / WideCheckAlt;
                 if(err > 0.1f)
                 {
                     CFG.VF.OnIfNot(VFlight.AltitudeControl);
-                    CFG.DesiredAltitude = WideCheckAlt;
+                    CFG.DesiredAltitude = bottom_control_altitude(WideCheckAlt);
                     return false;
                 }
                 if(err < 0.05f)
@@ -353,8 +356,8 @@ namespace ThrottleControlledAvionics
             if(WideCheckAlt < VSL.Geometry.D * 2)
                 WideCheckAlt = VSL.Geometry.D * 2;
             WideCheckAlt += delta_alt;
-            if(VSL.Altitude.Relative > WideCheckAlt)
-                WideCheckAlt = VSL.Altitude.Relative;
+            if(VSL.Altitude.BottomRelative > WideCheckAlt)
+                WideCheckAlt = VSL.Altitude.BottomRelative;
             if(WideCheckAlt > C.MaxWideCheckAltitude)
             {
                 CFG.AP1.Off();
@@ -395,7 +398,7 @@ namespace ThrottleControlledAvionics
             CFG.Anchor.Radius = C.NodeTargetRange;
             SetTarget(CFG.Anchor);
             CFG.Nav.OnIfNot(Navigation.Anchor);
-            WideCheckAlt = VSL.Geometry.H * (C.StopAtH + 1);
+            WideCheckAlt = VSL.Geometry.BottomH * (C.StopAtH + 1);
             TCA.SquadConfigAction(cfg => cfg.AP1.XOnIfNot(Autopilot1.Land));
             stage = Stage.Land;
         }
@@ -411,7 +414,7 @@ namespace ThrottleControlledAvionics
         protected override void Update()
         {
             if(CFG.AP1.Paused) return;
-            CFG.DesiredAltitude = WideCheckAlt;
+            CFG.DesiredAltitude = bottom_control_altitude(WideCheckAlt);
             CFG.AltitudeAboveTerrain = true;
             CFG.BlockThrottle = true;
             switch(stage)
@@ -453,7 +456,7 @@ namespace ThrottleControlledAvionics
                 }
                 if(scan(C.WideCheckLevel))
                 {
-                    Status(Loc.F("Lander_ScanningSurface", "Scanning for {0} surface to land: {1}",
+                    Status(Loc.F("Lander_ScanningSurface", "Scanning for <<1>> surface to land: <<2>>",
                            Colors.Active.Tag("<b>flat</b>"),
                            Colors.Good.Tag(Progress.ToString("P1"))));
                     break;
@@ -468,7 +471,7 @@ namespace ThrottleControlledAvionics
                 if(NextNode.flat) Status(Loc.T("Lander_MovingToSite", "Moving to a potential landing site..."));
                 else Status(Loc.T("Lander_SearchingSite", "Searching for a landing site..."));
                 if(!moved_to_next_node) break;
-                WideCheckAlt = VSL.Altitude.Relative;
+                WideCheckAlt = VSL.Altitude.BottomRelative;
                 if(NextNode.flat)
                 {
                     StartNode = NextNode;
@@ -484,7 +487,7 @@ namespace ThrottleControlledAvionics
                 {
                     CFG.Nav.OnIfNot(Navigation.Anchor);
                     CFG.VF.OnIfNot(VFlight.AltitudeControl);
-                    if(VSL.Altitude.Relative - WideCheckAlt > 5 || VSL.VerticalSpeed.Absolute < -1) break;
+                    if(VSL.Altitude.BottomRelative - WideCheckAlt > 5 || VSL.VerticalSpeed.Absolute < -1) break;
                     CFG.VerticalCutoff = VSL.Engines.Slow ? -0.5f : -1f;
                     WideCheckAlt = -10;
                 }
@@ -498,7 +501,7 @@ namespace ThrottleControlledAvionics
                 }
                 else
                 {
-                    if(VSL.Altitude.Relative > C.StopAtH * VSL.Geometry.H)
+                    if(VSL.Altitude.BottomRelative > C.StopAtH * VSL.Geometry.BottomH)
                         CFG.Nav.OnIfNot(Navigation.Anchor);
                     else CFG.HF.OnIfNot(HFlight.Stop);
                     CFG.SmoothSetVSC((VSL.Engines.Slow ? -0.5f : -1f) * Utils.ClampL(1 - VSL.HorizontalSpeed, 0.1f), -1, 0);

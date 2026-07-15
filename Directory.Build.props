@@ -1,7 +1,25 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<?xml version="1.0" encoding="UTF-8"?>
+<Project ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    KSPBuildTools loads $(SolutionDir)$(SolutionName).props.user for KSPBT_GameRoot.
+    When building a csproj directly (VS / dotnet), SolutionDir is unset — set it here.
+  -->
   <PropertyGroup>
-    <DebugSymbols>false</DebugSymbols>
-    <DebugType>none</DebugType>
+    <ProjectRootDir>$(MSBuildThisFileDirectory)</ProjectRootDir>
+    <SolutionDir Condition=" '$(SolutionDir)' == '' ">$(ProjectRootDir)</SolutionDir>
+    <SolutionName Condition=" '$(SolutionName)' == '' ">ThrottleControlledAvionics</SolutionName>
+
+    <!-- C# 14 treats `field` as a keyword; keep source compatible with existing identifiers. -->
+    <LangVersion>12.0</LangVersion>
+    <DebugType>portable</DebugType>
+    <NoWarn>0649</NoWarn>
+
+    <KSPBT_ModRoot>$(ProjectRootDir)GameData\ThrottleControlledAvionics</KSPBT_ModRoot>
+    <KSPBT_ModPluginFolder>Plugins</KSPBT_ModPluginFolder>
+  </PropertyGroup>
+
+  <!-- KSPBuildTools CKAN auto-install uses bash input redirect; broken on Windows cmd. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOsPlatform('Windows'))">
+    <KSPBT_InstallCKANDependencies>false</KSPBT_InstallCKANDependencies>
   </PropertyGroup>
 </Project>

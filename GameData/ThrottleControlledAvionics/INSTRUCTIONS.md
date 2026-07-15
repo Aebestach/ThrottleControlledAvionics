@@ -20,6 +20,8 @@ So, what TCA can do?
 
 If a vessel has RCS thrusters (and RCS is enabled), TCA automatically tries to change their thrust limiters, so that the torque generated conformed to the control input. In particular, when only translational controls are used, TCA tries to eliminate or at least minimize the undesired torque. **Note**, that with some physically unbalanced ship designs this may effectively disable RCS thrust almost completely.
 
+RCS balancing is calculated per individual nozzle. When *glob::RCSOptimizer::UseLeverWeighting* is enabled, nozzles with longer relative lever arms from the current CoM are preferred for rotation control. *LeverWeightPower*, *LeverPenaltyWeight*, *TranslationErrorWeight*, and *ThrustPreservationWeight* tune how strongly this preference is balanced against unwanted translation and loss of useful RCS thrust.
+
 ###Engines balancing
 
 Engines' balancing is performed in the same general manner as RCS balancing, but with much more control over the process: an engine always has an assigned TCA Role (or *mode*) which affects how its thrust limiter is handled; and there're several parameters in the *Advanced* section that control engines' response to control input.
@@ -262,7 +264,7 @@ This is a complex autopilot program that uses many other TCA modules. As you wou
 
 ###Waypoint Navigation
 
-This module allows TCA to automatically fly along a path of the user-defined waypoints or other landed ships. At any waypoint you have three options to choose from: fly by it (default), pause the game or land near it (using the Land autopilot).
+This module allows TCA to automatically fly to a selected surface target or along a path of the user-defined waypoints and other landed ships. Internally, point/path navigation is handled as an explicit state machine, so target loss, route completion and Land/Pause handoffs have well-defined exits. At any waypoint you have three options to choose from: fly by it (default), pause the game or land near it (using the Land autopilot).
 
 You can add waypoints directly in flight or in the Map View using mouse: first, press the "Add Waypoint" button in TCA Main Window; then left-click anywhere on the ground to create a waypoint; left-click again to create another; to finish the process click the right mouse button. Note, that rotation with the right mouse button pressed works normally in this mode.
 
@@ -272,9 +274,9 @@ Waypoints are displayed (on the ground and in Map View) when the "Show Waypoints
 
 ###GoTo/Follow Target
 
-In GoTo mode TCA will fly the ship to the currently selected target and then activate the Stop program upon arrival. In Follow mode the ship will constantly follow the target vessel.
+In GoTo mode TCA will fly the ship to the currently selected target and then activate the Stop program upon arrival. In Follow mode a separate Follow/Formation autopilot will constantly follow the target vessel.
 
-Simple. But what if you're trying to make several ships following the same target? In that case, to avoid collisions, TCA instances of the followers will negotiate and create a stable wedge formation with the target on its tip.
+Simple. But what if you're trying to make several ships following the same target? In that case, to avoid collisions, TCA instances of the followers will negotiate and create a stable wedge formation with the target on its tip. The formation autopilot keeps slot assignment, velocity matching and recovery from broken formation as separate internal states.
 
 ##In-Orbit Autopilots
 
@@ -286,6 +288,26 @@ Enables automatic time-warping to the start of the burn, taking into account att
 
 Does as it says; except it uses the T-SAS to control the attitude, so it's easily possible to perform orbital maneuvering with an unbalanced VTOL whose cockpit is rotated 90 degrees with respect to engines. Or to change orbit of a whole compound space station with engines pointing in different directions. I mean, controllably and predictably change orbit. Just assign engines' Roles properly.
 
+###Maneuver Planner
+
+The Planner button on the Orbital Autopilots tab creates common maneuver nodes without leaving the TCA window. It can preview a plan, create the node sequence, or create it and immediately hand it to the Execute Node autopilot.
+
+The planner supports three application modes:
+
+* **Create** clears existing maneuver nodes and creates the new plan.
+* **Append** keeps existing nodes and appends the new plan after them.
+* **Replace Last** removes only the last existing node, then creates the new plan.
+
+Available operations include:
+
+* **Circularize**, **Change ApA**, **Change PeA** and **Set PeA/ApA** for basic orbit shaping.
+* **Inclination** and **Match Plane** for plane changes; long low-TWR inclination changes may be split into several nodes.
+* **Resonant Orbit** for phasing or satellite deployment by choosing an orbital period ratio.
+* **Moon Transfer**, optional capture/match-velocity, **Slingshot Setup** and **Moon Return** for transfers inside the current planetary system.
+* **Interplanetary** for an approximate planet-to-planet transfer search.
+
+Target-dependent operations use the current KSP/TCA target. If the selected operation needs a target and none is valid, the planner will show a warning instead of creating nodes.
+
 ###Match V
 
 Constantly corrects ships orbital velocity to match that of the target object, using main thrusters as well as RCS (if available). Don't try it from far away, though, as in that case it will considerable modify your current orbit.
@@ -296,7 +318,7 @@ First waits for the nearest approach point with the target, then matches orbital
 
 ###ToOrbit
 
-This autopilot tries to achieve a circular orbit with user-defined radius and inclination. It uses a two-step approach, where it first gets into a suborbital trajectory with low apoapsis; at that apoapsis it accelerates to an orbit with the apoapsis equal to the final orbit radius; and finally it performs a circularization maneuver.
+This autopilot tries to achieve a circular orbit with user-defined radius and inclination. It uses a two-step approach, where it first gets into a suborbital trajectory with low apoapsis; at that apoapsis it accelerates to an orbit with the apoapsis equal to the final orbit radius; and finally it performs a circularization maneuver. If the requested inclination cannot be reached by a simple in-plane launch from the current latitude, ToOrbit uses the same targeted ascent steering that is used by the Rendezvous launch path.
 
 When you enable this autopilot, a small configuration window appears allowing you to define desired orbital parameters.
 

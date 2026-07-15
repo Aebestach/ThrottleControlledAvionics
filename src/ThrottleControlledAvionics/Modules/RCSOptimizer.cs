@@ -18,7 +18,14 @@ namespace ThrottleControlledAvionics
     [UsedImplicitly]
     public class RCSOptimizer : TorqueOptimizer
     {
-        public class Config : Config<Config> { }
+        public class Config : Config<Config>
+        {
+            [Persistent] public bool UseLeverWeighting = true;
+            [Persistent] public float LeverWeightPower = 1f;
+            [Persistent] public float LeverPenaltyWeight = 0.25f;
+            [Persistent] public float TranslationErrorWeight = 1f;
+            [Persistent] public float ThrustPreservationWeight = 0.5f;
+        }
 
         public static Config C => Config.INST;
 
@@ -31,14 +38,23 @@ namespace ThrottleControlledAvionics
             int num_engines,
             Vector3 target,
             float target_m,
-            float eps
+            float eps,
+            float leverPenaltyScale
         )
         {
             var compensation = Vector3.zero;
             for(var i = 0; i < num_engines; i++)
             {
                 var e = engines[i];
-                e.limit_tmp = -Vector3.Dot(e.currentTorque, target) / target_m / e.currentTorque_m * e.torqueRatio;
+                if(e.currentTorque_m <= eps)
+                {
+                    e.limit_tmp = 0;
+                    continue;
+                }
+                var leverPenalty = C.UseLeverWeighting
+                    ? 1 + e.ShortLeverPenalty * C.LeverPenaltyWeight * leverPenaltyScale
+                    : 1;
+                e.limit_tmp = -Vector3.Dot(e.currentTorque, target) / target_m / e.currentTorque_m * e.torqueRatio * leverPenalty;
                 if(e.limit_tmp > 0)
                     compensation += e.Torque(e.limit);
             }
@@ -55,6 +71,48 @@ namespace ThrottleControlledAvionics
             return true;
         }
 
+        float state_score(
+            IList<RCSWrapper> engines,
+            int num_engines,
+            float torqueError,
+            float angleError,
+            bool pureRotation
+        )
+        {
+            var translation = Vector3.zero;
+            var possibleThrust = 0f;
+            var usedThrust = 0f;
+            var leverPenalty = 0f;
+            var leverTorque = 0f;
+            for(var i = 0; i < num_engines; i++)
+            {
+                var e = engines[i];
+                var thrust = e.ThrustVector(e.limit);
+                translation += thrust;
+                possibleThrust += e.currentMaxThrust;
+                usedThrust += e.currentMaxThrust * e.limit;
+                var torque = e.currentTorque_m;
+                leverPenalty += e.ShortLeverPenalty * e.limit * torque;
+                leverTorque += torque;
+            }
+            var translationError = possibleThrust > 0
+                ? translation.sqrMagnitude / possibleThrust / possibleThrust
+                : 0;
+            var thrustLoss = possibleThrust > 0
+                ? Mathf.Pow(Mathf.Clamp01((possibleThrust - usedThrust) / possibleThrust), 2)
+                : 0;
+            var shortLeverUsage = leverTorque > 0 ? leverPenalty / leverTorque : 0;
+            var translationWeight = pureRotation ? C.TranslationErrorWeight : C.TranslationErrorWeight * 0.25f;
+            var leverWeight = C.UseLeverWeighting
+                ? C.LeverPenaltyWeight * (pureRotation ? 1 : 0.25f)
+                : 0;
+            return torqueError
+                   + Mathf.Max(angleError, 0)
+                   + translationError * translationWeight
+                   + thrustLoss * C.ThrustPreservationWeight
+                   + shortLeverUsage * leverWeight;
+        }
+
         public bool Optimize(IList<RCSWrapper> engines, Vector3 needed_torque)
         {
             var num_engines = engines.Count;
@@ -63,6 +121,9 @@ namespace ThrottleControlledAvionics
             var zero_torque = needed_torque.IsZero();
             var preset_limits = engines.Any(e => e.preset_limit >= 0);
             var last_error = -1f;
+            var best_score = -1f;
+            var pure_rotation = !VSL.Controls.HasTranslation;
+            var leverPenaltyScale = pure_rotation ? 1 : 0.25f;
             TorqueAngle = TorqueError = -1f;
             for(var i = 0; i < C.MaxIterations; i++)
             {
@@ -80,7 +141,8 @@ namespace ThrottleControlledAvionics
                 var error = VSL.Torque.AngularAcceleration(target).sqrMagnitude;
                 var angle = zero_torque ? 0f : Utils.Angle2Rad(cur_imbalance, needed_torque) * C.AngleErrorWeight;
                 // remember the best state
-                if(zero_torque && error < TorqueError || angle + error < TorqueAngle + TorqueError || TorqueAngle < 0)
+                var score = state_score(engines, num_engines, error, angle, pure_rotation);
+                if(score < best_score || best_score < 0)
                 {
                     for(var j = 0; j < num_engines; j++)
                     {
@@ -90,6 +152,7 @@ namespace ThrottleControlledAvionics
                     TorqueError = error;
                     if(!zero_torque && !cur_imbalance.IsZero())
                         TorqueAngle = angle;
+                    best_score = score;
                 }
                 // check convergence conditions
                 if(error < C.TorqueCutoff
@@ -115,7 +178,7 @@ namespace ThrottleControlledAvionics
                         }
                     }
                 }
-                if(!optimization_pass(engines, num_engines, target, target.magnitude, C.OptimizationPrecision))
+                if(!optimization_pass(engines, num_engines, target, target.magnitude, C.OptimizationPrecision, leverPenaltyScale))
                     break;
             }
             var optimized = TorqueError < C.OptimizationTorqueCutoff

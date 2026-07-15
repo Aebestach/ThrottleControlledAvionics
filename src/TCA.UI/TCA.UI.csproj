@@ -1,72 +1,30 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-    <PropertyGroup>
-        <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-        <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-        <ProjectGuid>{B16128EB-C7FC-404C-9C48-D996D489805B}</ProjectGuid>
-        <OutputType>Library</OutputType>
-        <RootNamespace>TCA.UI</RootNamespace>
-        <AssemblyName>TCA.UI</AssemblyName>
-        <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-        <LangVersion>latest</LangVersion>
-        <DeployOutputPath>$(MSBuildProjectDirectory)\..\..\..\AT_Utils\editor\Assets\Plugins\</DeployOutputPath>
-        <GameDataOutputPath>$(MSBuildProjectDirectory)\..\..\GameData\ThrottleControlledAvionics\Plugins\</GameDataOutputPath>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-        <Optimize>false</Optimize>
-        <OutputPath>$(DeployOutputPath)</OutputPath>
-        <DefineConstants>DEBUG;</DefineConstants>
-        <ErrorReport>prompt</ErrorReport>
-        <WarningLevel>4</WarningLevel>
-        <ConsolePause>false</ConsolePause>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-        <Optimize>true</Optimize>
-        <OutputPath>$(DeployOutputPath)</OutputPath>
-        <ErrorReport>prompt</ErrorReport>
-        <WarningLevel>4</WarningLevel>
-        <ConsolePause>false</ConsolePause>
-    </PropertyGroup>
-    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Nightbuild|AnyCPU' ">
-        <OutputPath>$(DeployOutputPath)</OutputPath>
-        <DefineConstants>NIGHTBUILD</DefineConstants>
-        <Optimize>true</Optimize>
-    </PropertyGroup>
-    <ItemGroup>
-        <Compile Include="AssemblyInfo.cs" />
-        <Compile Include="InfoUI.cs" />
-        <Compile Include="StatusUI.cs" />
-        <Compile Include="VFlightUI.cs" />
-        <Compile Include="AttitudeUI.cs" />
-        <Compile Include="ManeuverUI.cs" />
-    </ItemGroup>
-    <ItemGroup>
-        <ProjectReference Include="..\..\..\AT_Utils\src\AT_Utils.UI\AT_Utils.UI.csproj">
-            <Project>{0B711E55-8312-144F-53AD-EDA5A8CEE04A}</Project>
-            <Name>AT_Utils.UI</Name>
-            <Private>False</Private>
-        </ProjectReference>
-    </ItemGroup>
-    <ItemGroup>
-        <Reference Include="System">
-            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\System.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine">
-            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.CoreModule, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null">
-            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.CoreModule.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-        <Reference Include="UnityEngine.UI">
-            <HintPath>..\..\..\00. KSP DEVELOP PLUGINS\UnityEngine.UI.dll</HintPath>
-            <Private>False</Private>
-        </Reference>
-    </ItemGroup>
-    <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
-    <Target Name="DeployTcaUiToGameData" AfterTargets="Build">
-        <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(GameDataOutputPath)" SkipUnchangedFiles="true" />
-    </Target>
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <FileVersion>$(Version)</FileVersion>
+    <AssemblyName>TCA.UI</AssemblyName>
+    <RootNamespace>TCA.UI</RootNamespace>
+    <TargetFramework>net481</TargetFramework>
+    <Description>UI logic assembly for Throttle Controlled Avionics</Description>
+    <Product>TCA.UI</Product>
+    <Copyright>Allis Tauri</Copyright>
+    <KSPBT_GenerateVersionFile>false</KSPBT_GenerateVersionFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="KSPBuildTools" Version="1.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\AT_Utils\src\AT_Utils.UI\AT_Utils.UI.csproj">
+      <Private>false</Private>
+      <KSPAssemblyName>0_00_AT_Utils_UI</KSPAssemblyName>
+      <KSPAssemblyVersion>1.0</KSPAssemblyVersion>
+    </ProjectReference>
+  </ItemGroup>
+
+  <!-- Also deploy into the AT_Utils Unity editor project used for UI authoring -->
+  <Target Name="DeployTcaUiToEditor" AfterTargets="KSPBT_CopyDLLsToPluginFolder">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ProjectRootDir)..\AT_Utils\editor\Assets\Plugins\" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

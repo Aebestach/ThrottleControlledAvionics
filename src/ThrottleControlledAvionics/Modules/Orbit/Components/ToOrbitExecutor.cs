@@ -34,6 +34,7 @@ namespace ThrottleControlledAvionics
             [Persistent] public float MinThrustMod = 0.8f;
             [Persistent] public float MaxThrustMod = 0.99f;
             [Persistent] public float FirstApA = 10f;
+            [Persistent] public float CoastRecoverTime = 10f;
 
             [Persistent] public PIDf_Controller3 PitchPID = new PIDf_Controller3();
             [Persistent] public PIDf_Controller3 ThrottlePID = new PIDf_Controller3();
@@ -106,8 +107,14 @@ namespace ThrottleControlledAvionics
         protected PIDf_Controller3 norm_correction = new PIDf_Controller3();
         protected PIDf_Controller3 throttle = new PIDf_Controller3();
         protected PIDf_Controller3 dApA_pid = new PIDf_Controller3();
-        private double prevApA;
+        protected double prevApA;
         private float thrustToKeepApA;
+        [Persistent] protected bool CoastingToApoapsis;
+        [Persistent] protected double CoastTargetApR = -1;
+        private double lastCoastApR = -1;
+        private double lastCoastUT = -1;
+        private float lastCoastThrottle;
+        private readonly LowPassFilterD coastApRRatePerThrottle = new LowPassFilterD();
         protected double CircularizationOffset = -1;
         protected bool ApoapsisReached;
         protected bool CourseOnTarget;
@@ -139,6 +146,7 @@ namespace ThrottleControlledAvionics
             dApA_pid.setClamp(0.5f);
             norm_correction.setPID(C.NormCorrectionPID);
             norm_correction.setClamp(AttitudeControlBase.C.MaxAttitudeError);
+            coastApRRatePerThrottle.Tau = 3;
             FirstApA.Value = -1;
             TimeToApA.Value = TrajectoryCalculator.C.ManeuverOffset;
             MinThrottle.Value = C.MinThrottle;
@@ -175,7 +183,7 @@ namespace ThrottleControlledAvionics
             LaunchUT = -1;
             ApAUT = -1;
             GravityTurnStart = 0;
-            CircularizationOffset = -1;
+            reset_coast();
             ApoapsisReached = false;
             Target = Vector3d.zero;
             ErrorThreshold.Reset();
@@ -245,25 +253,96 @@ namespace ThrottleControlledAvionics
             return Utils.ClampDirection(needed_vel, pg_vel, clampAngle);
         }
 
-        protected bool coast(Vector3d pg_vel)
+        private void reset_coast()
         {
+            CoastingToApoapsis = false;
+            CoastTargetApR = -1;
+            CircularizationOffset = -1;
+            lastCoastApR = -1;
+            lastCoastUT = -1;
+            lastCoastThrottle = 0;
+            coastApRRatePerThrottle.Reset();
+        }
+
+        private void start_coast()
+        {
+            CoastingToApoapsis = true;
+            CoastTargetApR = TargetR;
+            lastCoastApR = -1;
+            lastCoastUT = -1;
+            lastCoastThrottle = 0;
+            coastApRRatePerThrottle.Reset();
+        }
+
+        protected bool ShouldCoast => CoastingToApoapsis || ErrorThreshold;
+
+        private void update_circularization_offset()
+        {
+            if(CircularizationOffset >= 0)
+                return;
+            ApAUT = VSL.Physics.UT + VesselOrbit.timeToAp;
+            CircularizationOffset = VSL.Engines.TTB_Precise((float)TrajectoryCalculator
+                                        .dV4C(VesselOrbit, hV(ApAUT), ApAUT)
+                                        .magnitude)
+                                    / 2;
+        }
+
+        private float max_ascent_throttle()
+        {
+            var maxThrottle = max_G_throttle();
+            if(VSL.vessel.dynamicPressurekPa > C.MaxDynPressure)
+                maxThrottle = Mathf.Min(maxThrottle,
+                    Mathf.Max(1 - ((float)VSL.vessel.dynamicPressurekPa - C.MaxDynPressure) / 5, 0));
+            return Utils.Clamp(maxThrottle, 0, 1);
+        }
+
+        private float apoapsis_maintenance_throttle(float Dtol)
+        {
+            var now = VSL.Physics.UT;
+            if(lastCoastUT >= 0 && now > lastCoastUT && lastCoastThrottle > 0.01f)
+            {
+                var rate = (VesselOrbit.ApR - lastCoastApR) / (now - lastCoastUT) / lastCoastThrottle;
+                if(!double.IsNaN(rate) && !double.IsInfinity(rate) && rate > 1)
+                    coastApRRatePerThrottle.Update(rate);
+            }
+            var targetApR = CoastTargetApR > 0 ? CoastTargetApR : TargetR;
+            var error = targetApR - VesselOrbit.ApR;
+            var tolerance = Math.Max(Dtol, ErrorThreshold.Upper);
+            var maxThrottle = max_ascent_throttle();
+            var throttle = 0f;
+            if(error > tolerance && maxThrottle > 0)
+            {
+                var targetRecoveryTime = Math.Max(C.CoastRecoverTime, TimeWarp.fixedDeltaTime);
+                var desiredRate = error / targetRecoveryTime;
+                if(coastApRRatePerThrottle.Value > 1)
+                    throttle = (float)(desiredRate / coastApRRatePerThrottle.Value);
+                else
+                    throttle = MinThrottle / 100;
+                var minThrottle = Mathf.Min(MinThrottle / 100, maxThrottle);
+                throttle = Utils.Clamp(throttle, minThrottle, maxThrottle);
+            }
+            lastCoastApR = VesselOrbit.ApR;
+            lastCoastUT = now;
+            lastCoastThrottle = throttle;
+            return throttle;
+        }
+
+        protected bool coast(Vector3d pg_vel, float Dtol)
+        {
+            if(!CoastingToApoapsis)
+                start_coast();
             Status("Coasting...");
             CFG.BR.OffIfOn(BearingMode.Auto);
             CFG.AT.OnIfNot(Attitude.Custom);
             ATC.SetThrustDirW(-pg_vel.xzy);
-            THR.Throttle = 0;
-            // ReSharper disable once InvertIf
-            if(CircularizationOffset < 0)
-            {
-                ApAUT = VSL.Physics.UT + VesselOrbit.timeToAp;
-                CircularizationOffset = VSL.Engines.TTB_Precise((float)TrajectoryCalculator
-                                            .dV4C(VesselOrbit, hV(ApAUT), ApAUT)
-                                            .magnitude)
-                                        / 2;
-            }
-            return VesselOrbit.timeToAp > TimeToApA + CircularizationOffset
-                   && Body.atmosphere
-                   && VesselOrbit.radius < Body.Radius + Body.atmosphereDepth;
+            THR.CorrectThrottle = false;
+            update_circularization_offset();
+            var keepCoasting = VesselOrbit.timeToAp > TimeToApA + CircularizationOffset
+                               && Body.atmosphere
+                               && VesselOrbit.radius < Body.Radius + Body.atmosphereDepth;
+            THR.Throttle = keepCoasting ? apoapsis_maintenance_throttle(Dtol) : 0;
+            prevApA = VesselOrbit.ApA;
+            return keepCoasting;
         }
 
         protected float max_G_throttle()
@@ -315,13 +394,13 @@ namespace ThrottleControlledAvionics
         {
             UpdateTargetPosition();
             VSL.Engines.ActivateEngines();
-            VSL.OnPlanetParams.ActivateLaunchClamps();
             if(VSL.VerticalSpeed.Absolute / VSL.Physics.G < Config.INST.MinClimbTime)
             {
                 Status("Liftoff...");
                 CFG.DisableVSC();
                 CFG.VTOLAssistON = true;
                 THR.Throttle = max_G_throttle();
+                VSL.OnPlanetParams.ActivateLaunchClamps();
                 CFG.AT.OnIfNot(Attitude.Custom);
                 var vel = VSL.Physics.Up;
                 vel = tune_needed_vel(vel, vel, 1);
@@ -341,6 +420,7 @@ namespace ThrottleControlledAvionics
             CFG.StabilizeFlight = false;
             CFG.HF.Off();
             prevApA = VesselOrbit.ApA;
+            reset_coast();
             update_state(0);
         }
 
@@ -351,12 +431,11 @@ namespace ThrottleControlledAvionics
             update_state(Dtol);
             var pg_vel = get_pg_vel();
             currentAoA = Utils.Angle2(VSL.Engines.CurrentDefThrustDir, -(Vector3)pg_vel.xzy);
-            // if within error threshold, coast to circularization
-            if(ErrorThreshold)
-                return coast(pg_vel);
+            // Once coasting starts, keep it latched and correct ApA with small throttle trims.
+            if(ShouldCoast)
+                return coast(pg_vel, Dtol);
             // the gravity turn proper
             CFG.AT.OnIfNot(Attitude.Custom);
-            CircularizationOffset = -1;
             tune_THR();
             auto_ApA_offset();
             var vel = pg_vel;
@@ -433,80 +512,54 @@ namespace ThrottleControlledAvionics
 
         public void DrawOptions()
         {
+            draw_float_option(Loc.Content("ToOrbit_MaxApoapsis", "Max. Apoapsis:",
+                    "ToOrbit_MaxApoapsis_Tooltip",
+                    "The maximum altitude of the starting sub-orbital trajectory "
+                    + "that is used to either circularize or to get to a higher orbit."),
+                FirstApA, "km", 5, "F1");
+            draw_time_to_apoapsis_option();
+            draw_float_option(Loc.Content("ToOrbit_MinThrottle", "Min. Throttle:",
+                    "ToOrbit_MinThrottle_Tooltip",
+                    "Minimum throttle value. Increasing it will shorten the last stage of the ascent."),
+                MinThrottle, "%", 5, "F1");
+            draw_float_option(Loc.Content("ToOrbit_GTurnAngle", "G.Turn Angle:",
+                    "ToOrbit_GTurnAngle_Tooltip",
+                    "The initial deviation from vertical direction. After that, the ship will follow prograde. Smaller angle gives steeper trajectory."),
+                GravityTurnAngle, "°", 5, "F1");
+            draw_float_option(Loc.Content("ToOrbit_MaxAcceleration", "Max. Acceleration:",
+                    "ToOrbit_MaxAcceleration_Tooltip",
+                    "Maximum allowed acceleration (in gees of the current planet). Smooths gravity turn on low-gravity worlds. Saves fuel."),
+                MaxG, "g", 0.5f, "F1");
+            draw_float_option(Loc.Content("ToOrbit_MaxDynPressure", "Max. Dyn.Pressure:",
+                    "ToOrbit_MaxDynPressure_Tooltip",
+                    "Maximum allowed dynamic pressure (for gravity turn in atmosphere). Determines how much the ship is allowed to deviate from prograde. If current dynamic pressure is higher, the ship will follow prograde exactly."),
+                MaxDynP, "kPa", 5, "F1");
+            draw_float_option(Loc.Content("ToOrbit_MaxAoA", "Max. Angle of Attack:",
+                    "ToOrbit_MaxAoA_Tooltip",
+                    "Maximum allowed angle of attack. This is the hard limit that is modified by maximum dynamic pressure setting."),
+                MaxAoA, "°", 1, "F1");
+        }
+
+        static void draw_float_option(GUIContent label, FloatField field, string suffix, float step, string format)
+        {
             GUILayout.BeginHorizontal();
-            {
-                GUILayout.BeginVertical();
-                {
-                    GUILayout.Label(Loc.Content("ToOrbit_MaxApoapsis", "Max. Apoapsis:",
-                            "ToOrbit_MaxApoapsis_Tooltip",
-                            "The maximum altitude of the starting sub-orbital trajectory "+
-                            "that is used to either circularize or to get to a higher orbit."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_TimeToApoapsis", "Time to Apoapsis:",
-                                                   "ToOrbit_TimeToApoapsis_Tooltip",
-                                                   "More time to apoapsis means steeper trajectory " +
-                                                   "and greater acceleration. Low values can " +
-                                                   "save a lot of fuel."),
-                                    GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_MinThrottle", "Min. Throttle:",
-                                                   "ToOrbit_MinThrottle_Tooltip",
-                                                   "Minimum throttle value. " +
-                                                   "Increasing it will shorten the last stage of the ascent."),
-                                    GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_GTurnAngle", "G.Turn Angle:",
-                            "ToOrbit_GTurnAngle_Tooltip",
-                            "The initial deviation from vertical direction. " +
-                            "After that, the ship will follow prograde. Smaller angle gives steeper trajectory."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_MaxAcceleration", "Max. Acceleration:",
-                                                   "ToOrbit_MaxAcceleration_Tooltip",
-                                                   "Maximum allowed acceleration (in gees of the current planet). " +
-                                                   "Smooths gravity turn on low-gravity worlds. Saves fuel."),
-                                    GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_MaxDynPressure", "Max. Dyn.Pressure:",
-                            "ToOrbit_MaxDynPressure_Tooltip",
-                            "Maximum allowed dynamic pressure (for gravity turn in atmosphere). "
-                            + "Determines how much the ship is allowed to deviate from prograde. "
-                            + "If current dynamic pressure is higher, the ship will follow prograde exactly."),
-                        GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_MaxAoA", "Max. Angle of Attack:",
-                            "ToOrbit_MaxAoA_Tooltip",
-                            "Maximum allowed angle of attack. "
-                            + "This is the hard limit that is modified by maximum dynamic pressure setting."),
-                        GUILayout.ExpandWidth(true));
-                }
-                GUILayout.EndVertical();
-                GUILayout.BeginVertical();
-                {
-                    GUILayout.FlexibleSpace();
-                    GUILayout.BeginHorizontal();
-                    {
-                        GUILayout.FlexibleSpace();
-                        Utils.ButtonSwitch(Loc.T("ToOrbit_Auto", "Auto"),
-                            ref AutoTimeToApA,
-                            Loc.T("ToOrbit_Auto_Tooltip", "Tune time to apoapsis automatically"),
-                            GUILayout.ExpandWidth(false));
-                    }
-                    GUILayout.EndHorizontal();
-                    GUILayout.FlexibleSpace();
-                    GUILayout.FlexibleSpace();
-                    GUILayout.FlexibleSpace();
-                    GUILayout.FlexibleSpace();
-                    GUILayout.FlexibleSpace();
-                }
-                GUILayout.EndVertical();
-                GUILayout.BeginVertical();
-                {
-                    FirstApA.Draw("km", 5, "F1", suffix_width: 25);
-                    TimeToApA.Draw("s", 5, "F1", suffix_width: 25);
-                    MinThrottle.Draw("%", 5, "F1", suffix_width: 25);
-                    GravityTurnAngle.Draw("°", 5, "F1", 25);
-                    MaxG.Draw("g", 0.5f, "F1", suffix_width: 25);
-                    MaxDynP.Draw("kPa", 5, "F1", 25);
-                    MaxAoA.Draw("°", 1, "F1", 25);
-                }
-                GUILayout.EndVertical();
-            }
+            GUILayout.Label(label, GUILayout.Width(150));
+            field.Draw(suffix, step, format, suffix_width: 25);
+            GUILayout.EndHorizontal();
+        }
+
+        void draw_time_to_apoapsis_option()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.Content("ToOrbit_TimeToApoapsis", "Time to Apoapsis:",
+                    "ToOrbit_TimeToApoapsis_Tooltip",
+                    "More time to apoapsis means steeper trajectory and greater acceleration. Low values can save a lot of fuel."),
+                GUILayout.Width(150));
+            Utils.ButtonSwitch(Loc.T("ToOrbit_Auto", "Auto"),
+                ref AutoTimeToApA,
+                Loc.T("ToOrbit_Auto_Tooltip", "Tune time to apoapsis automatically"),
+                GUILayout.Width(50));
+            TimeToApA.Draw("s", 5, "F1", suffix_width: 25);
             GUILayout.EndHorizontal();
         }
 

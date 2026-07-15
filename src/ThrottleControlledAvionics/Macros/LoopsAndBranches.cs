@@ -80,6 +80,13 @@ namespace ThrottleControlledAvionics
             ElseBlock.SetCFG(cfg);
         }
 
+        public override void CommitEdits()
+        {
+            base.CommitEdits();
+            IfBlock?.CommitEdits();
+            ElseBlock?.CommitEdits();
+        }
+
         protected override bool Action(VesselWrapper VSL)
         {
             if(Control > 1) return false;

@@ -141,7 +141,7 @@ namespace ThrottleControlledAvionics
             //correct for terrain altitude and radar data if following terrain
             if(CFG.AltitudeAboveTerrain)
             {
-                var obstacle_ahead = VSL.HorizontalSpeed.MoovingFast && alt - VSL.Altitude.Ahead <= VSL.Geometry.H;
+                var obstacle_ahead = VSL.HorizontalSpeed.MoovingFast && alt - VSL.Altitude.Ahead <= VSL.Geometry.BottomH;
                 if(obstacle_ahead)
                 {
                     SetState(TCAState.GroundCollision);
@@ -168,7 +168,7 @@ namespace ThrottleControlledAvionics
                 if(VSL.Altitude.CorrectionAllowed)
                     lower_threshold = Mathf.Max(VSL.Altitude.Ahead, lower_threshold);
                 alt -= lower_threshold;
-                if(alt < VSL.Geometry.H && CFG.VerticalCutoff > 0)
+                if(alt < VSL.Geometry.BottomH && CFG.VerticalCutoff > 0)
                     SetState(TCAState.Ascending);
             }
             //calculate altitude error

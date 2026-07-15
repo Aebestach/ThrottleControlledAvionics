@@ -24,20 +24,24 @@ namespace ThrottleControlledAvionics
         {
             [Persistent] public float Dtol = 100f;
             [Persistent] public float LaunchSlope = 50f;
-            [Persistent] public PIDf_Controller3 InclinationPID = new PIDf_Controller3();
+            [Persistent] public float TargetedAscentInclinationTolerance = 0.1f;
         }
         public static new Config C => Config.INST;
 
         public enum Stage { None, Start, Liftoff, GravityTurn, ChangeApA, Circularize }
+        public enum LaunchGuidanceMode { Normal, Advanced }
 
-        [Persistent] public ToOrbitExecutor ToOrbit = new ToOrbitExecutor();
+        [Persistent] public TargetedToOrbitExecutor ToOrbit = new TargetedToOrbitExecutor();
+        [Persistent] public AdvancedToOrbitExecutor AdvancedToOrbit = new AdvancedToOrbitExecutor();
         [Persistent] public TargetOrbitInfo TargetOrbit = new TargetOrbitInfo();
         [Persistent] public Stage stage;
+        [Persistent] public LaunchGuidanceMode GuidanceMode;
 
         public bool ShowOptions;
 
         double ApR => TargetOrbit.ApA * 1000 + Body.Radius;
-        private PIDf_Controller3 inclinationPID = new PIDf_Controller3();
+        TargetedToOrbitExecutor ActiveToOrbit =>
+            GuidanceMode == LaunchGuidanceMode.Advanced ? AdvancedToOrbit : ToOrbit;
 
         public ToOrbitAutopilot(ModuleTCA tca) : base(tca) { }
 
@@ -46,7 +50,7 @@ namespace ThrottleControlledAvionics
             base.Init();
             CFG.AP2.AddHandler(this, Autopilot2.ToOrbit);
             ToOrbit.AttachTCA(TCA);
-            inclinationPID.setPID(C.InclinationPID);
+            AdvancedToOrbit.AttachTCA(TCA);
         }
 
         protected override void UpdateState()
@@ -62,7 +66,7 @@ namespace ThrottleControlledAvionics
             case Multiplexer.Command.Resume:
                 if(!check_patched_conics()) return;
                 showOptions(true);
-                ToOrbit.CorrectOnlyAltitude = true;
+                configure_ascent_mode();
                 break;
 
             case Multiplexer.Command.On:
@@ -80,6 +84,8 @@ namespace ThrottleControlledAvionics
                 var ApR0 = Utils.ClampH(ApR, ToOrbit.MaxApR);
                 var ascO = AscendingOrbit(ApR0, hVdir, C.LaunchSlope);
                 ToOrbit.Target = ascO.getRelativePositionAtUT(VSL.Physics.UT + ascO.timeToAp);
+                AdvancedToOrbit.Target = ToOrbit.Target;
+                configure_ascent_mode();
                 stage = Stage.Start;
                 goto case Multiplexer.Command.Resume;
 
@@ -93,6 +99,7 @@ namespace ThrottleControlledAvionics
         void update_limits()
         {
             ToOrbit.UpdateLimits();
+            AdvancedToOrbit.UpdateLimits();
             TargetOrbit.ApA.Min = ToOrbit.FirstApA.Min;
             TargetOrbit.ApA.Max = ToOrbit.FirstApA.Max;
             TargetOrbit.ApA.ClampValue();
@@ -108,12 +115,25 @@ namespace ThrottleControlledAvionics
             TargetOrbit.Inclination.ClampValue();
         }
 
+        void configure_ascent_mode()
+        {
+            var local_native_inclination = TargetOrbit.RetrogradeOrbit
+                ? 180 - TargetOrbit.Inclination.Min
+                : TargetOrbit.Inclination.Min;
+            ToOrbit.InPlane = Math.Abs(TargetOrbit.TargetInclination - local_native_inclination)
+                              < C.TargetedAscentInclinationTolerance;
+            ToOrbit.CorrectOnlyAltitude = ToOrbit.InPlane;
+            AdvancedToOrbit.InPlane = ToOrbit.InPlane;
+            AdvancedToOrbit.CorrectOnlyAltitude = ToOrbit.InPlane;
+            AdvancedToOrbit.Target = ToOrbit.Target;
+        }
+
         protected override void Reset()
         {
             base.Reset();
             update_limits();
             ToOrbit.Reset();
-            inclinationPID.Reset();
+            AdvancedToOrbit.Reset();
             stage = Stage.None;
         }
 
@@ -158,20 +178,18 @@ namespace ThrottleControlledAvionics
                     stage = Stage.Liftoff;
                 else
                 {
-                    ToOrbit.StartGravityTurn();
-                    inclinationPID.Reset();
+                    ActiveToOrbit.StartGravityTurn();
                     stage = Stage.GravityTurn;
                 }
                 break;
             case Stage.Liftoff:
-                if(ToOrbit.Liftoff()) break;
-                inclinationPID.Reset();
+                if(ActiveToOrbit.Liftoff()) break;
                 stage = Stage.GravityTurn;
                 break;
             case Stage.GravityTurn:
                 update_inclination_limits();
-                correctTarget();
-                if(ToOrbit.GravityTurn(C.Dtol))
+                correctTarget(ActiveToOrbit);
+                if(gravity_turn())
                     break;
                 CFG.BR.OffIfOn(BearingMode.Auto);
                 var ApAUT = VSL.Physics.UT + VesselOrbit.timeToAp;
@@ -193,17 +211,26 @@ namespace ThrottleControlledAvionics
             }
         }
 
-        private void correctTarget()
+        bool gravity_turn()
+        {
+            if(GuidanceMode == LaunchGuidanceMode.Advanced)
+                return AdvancedToOrbit.AdvancedGravityTurn(C.Dtol, TargetOrbit.TargetInclination);
+            return ToOrbit.InPlane
+                       ? ToOrbit.GravityTurn(C.Dtol)
+                       : ToOrbit.TargetedGravityTurn(C.Dtol);
+        }
+
+        private void correctTarget(TargetedToOrbitExecutor executor)
         {
             var orbitNormal = VesselOrbit.GetOrbitNormal();
-            var vslToTargetNormal = Vector3d.Cross(VesselOrbit.pos, ToOrbit.Target);
+            var vslToTargetNormal = Vector3d.Cross(VesselOrbit.pos, executor.Target);
             var norm2norm = Math.Abs(Utils.Angle2(orbitNormal, vslToTargetNormal) - 90);
             if(!(norm2norm > 60))
                 return;
             // rotate target vector with current vessel orbital position
-            var arcToTarget = Utils.Angle2(VesselOrbit.pos, ToOrbit.Target);
+            var arcToTarget = Utils.Angle2(VesselOrbit.pos, executor.Target);
             if(arcToTarget < 30)
-                ToOrbit.Target = QuaternionD.AngleAxis(30 - arcToTarget, vslToTargetNormal) * ToOrbit.Target;
+                executor.Target = QuaternionD.AngleAxis(30 - arcToTarget, vslToTargetNormal) * executor.Target;
             // correct inclination of the vessel-to-target plane using binary search
             var inclination = Math.Acos(Utils.Clamp(vslToTargetNormal.z / vslToTargetNormal.magnitude, -1, 1))
                               * Mathf.Rad2Deg;
@@ -226,12 +253,12 @@ namespace ThrottleControlledAvionics
                     angle /= -2;
             }
             if(!double.IsNaN(correctionAngle))
-                ToOrbit.Target = QuaternionD.AngleAxis(correctionAngle, axis) * ToOrbit.Target;
+                executor.Target = QuaternionD.AngleAxis(correctionAngle, axis) * executor.Target;
 #if DEBUG
             DebugWindowController.PostMessage($"ToOrbit AP: {VSL.vessel.vesselName}",
                 $"inclination: {inclination:F6}\n"
                 + $"error: {inclinationError:e3}\n"
-                + $"corrected: {getTargetInclinationError(ToOrbit.Target):e3}\n"
+                + $"corrected: {getTargetInclinationError(executor.Target):e3}\n"
                 + $"angle: {correctionAngle:F6}"); //debug
 #endif
         }
@@ -280,9 +307,14 @@ namespace ThrottleControlledAvionics
         {
             GUILayout.BeginVertical();
             TargetOrbit.Draw();
-            ToOrbit.DrawOptions();
+            draw_guidance_mode();
+            ActiveToOrbit.DrawOptions();
             if(stage == Stage.GravityTurn)
-                ToOrbit.DrawInfo(TargetOrbit.TargetInclination);
+            {
+                ActiveToOrbit.DrawInfo(TargetOrbit.TargetInclination);
+                if(GuidanceMode == LaunchGuidanceMode.Advanced)
+                    AdvancedToOrbit.DrawAdvancedInfo();
+            }
             GUILayout.BeginHorizontal();
             ShowOptions = !GUILayout.Button(Loc.T("Cancel", "Cancel"), Styles.active_button, GUILayout.ExpandWidth(true));
             if(stage != Stage.None &&
@@ -299,6 +331,26 @@ namespace ThrottleControlledAvionics
             }
             GUILayout.EndHorizontal();
             GUILayout.EndVertical();
+        }
+
+        void draw_guidance_mode()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.Content("ToOrbit_GuidanceMode", "Guidance:",
+                "ToOrbit_GuidanceMode_Tooltip",
+                "Normal uses the classic TCA gravity turn. Advanced uses predictive trajectory guidance with terminal orbit injection."),
+                GUILayout.ExpandWidth(true));
+            if(Utils.ButtonSwitch(Loc.T("ToOrbit_ModeNormal", "Normal"),
+                   GuidanceMode == LaunchGuidanceMode.Normal,
+                   Loc.T("ToOrbit_ModeNormal_Tooltip", "Use the classic TCA gravity-turn ascent."),
+                   GUILayout.ExpandWidth(false)))
+                GuidanceMode = LaunchGuidanceMode.Normal;
+            if(Utils.ButtonSwitch(Loc.T("ToOrbit_ModeAdvanced", "Advanced"),
+                   GuidanceMode == LaunchGuidanceMode.Advanced,
+                   Loc.T("ToOrbit_ModeAdvanced_Tooltip", "Use predictive trajectory guidance and closed-loop orbital injection."),
+                   GUILayout.ExpandWidth(false)))
+                GuidanceMode = LaunchGuidanceMode.Advanced;
+            GUILayout.EndHorizontal();
         }
     }
 
@@ -320,44 +372,27 @@ namespace ThrottleControlledAvionics
         public void Draw()
         {
             GUILayout.BeginHorizontal();
-            {
-                GUILayout.BeginVertical();
-                {
-                    GUILayout.Label(Loc.Content("ToOrbit_Apoapsis", "Apoapsis:", "ToOrbit_Apoapsis_Tooltip", "Apoapsis of the target circular orbit"), 
-                                    GUILayout.ExpandWidth(true));
-                    GUILayout.Label(Loc.Content("ToOrbit_Inclination", "Inclination:",
-                                                   "ToOrbit_Inclination_Tooltip",
-                                                   "Inclination of the prograde varian of a target orbit. " +
-                                                   "In case of retrograde orbits the actual target inclination is " +
-                                                   "180-prograde_inclination."), 
-                                    GUILayout.ExpandWidth(true));
-                }
-                GUILayout.EndVertical();
-                GUILayout.BeginVertical();
-                {
-                    GUILayout.FlexibleSpace();
-                    GUILayout.BeginHorizontal();
-                    {
-                        GUILayout.FlexibleSpace();
-                        if(GUILayout.Button(Loc.Content(DescendingNode ? "ToOrbit_DN" : "ToOrbit_AN", DescendingNode ? "DN" : "AN", "ToOrbit_Node_Tooltip", "Launch from Ascending or Descending Node?"),
-                                            DescendingNode ? Styles.danger_button : Styles.enabled_button,
-                                            GUILayout.ExpandWidth(false)))
-                            DescendingNode = !DescendingNode;
-                        if(GUILayout.Button(Loc.Content(RetrogradeOrbit ? "ToOrbit_RG" : "ToOrbit_PG", RetrogradeOrbit ? "RG" : "PG", "ToOrbit_OrbitDir_Tooltip", "Prograde or retrograde orbit?"),
-                                            RetrogradeOrbit ? Styles.danger_button : Styles.enabled_button,
-                                            GUILayout.ExpandWidth(false)))
-                            RetrogradeOrbit = !RetrogradeOrbit;
-                    }
-                    GUILayout.EndHorizontal();
-                }
-                GUILayout.EndVertical();
-                GUILayout.BeginVertical();
-                {
-                    ApA.Draw("km", 5, "F1", suffix_width: 25);
-                    Inclination.Draw("°", 5, "F1", suffix_width: 25);
-                }
-                GUILayout.EndVertical();
-            }
+            GUILayout.Label(Loc.Content("ToOrbit_Apoapsis", "Apoapsis:",
+                    "ToOrbit_Apoapsis_Tooltip", "Apoapsis of the target circular orbit"),
+                GUILayout.Width(150));
+            GUILayout.Space(64);
+            ApA.Draw("km", 5, "F1", suffix_width: 25);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.Content("ToOrbit_Inclination", "Inclination:",
+                    "ToOrbit_Inclination_Tooltip",
+                    "Inclination of the prograde varian of a target orbit. In case of retrograde orbits the actual target inclination is 180-prograde_inclination."),
+                GUILayout.Width(150));
+            if(GUILayout.Button(Loc.Content(DescendingNode ? "ToOrbit_DN" : "ToOrbit_AN", DescendingNode ? "DN" : "AN", "ToOrbit_Node_Tooltip", "Launch from Ascending or Descending Node?"),
+                                DescendingNode ? Styles.danger_button : Styles.enabled_button,
+                                GUILayout.Width(30)))
+                DescendingNode = !DescendingNode;
+            if(GUILayout.Button(Loc.Content(RetrogradeOrbit ? "ToOrbit_RG" : "ToOrbit_PG", RetrogradeOrbit ? "RG" : "PG", "ToOrbit_OrbitDir_Tooltip", "Prograde or retrograde orbit?"),
+                                RetrogradeOrbit ? Styles.danger_button : Styles.enabled_button,
+                                GUILayout.Width(30)))
+                RetrogradeOrbit = !RetrogradeOrbit;
+            Inclination.Draw("°", 5, "F1", suffix_width: 25);
             GUILayout.EndHorizontal();
         }
     }

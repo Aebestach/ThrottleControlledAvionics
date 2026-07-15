@@ -157,6 +157,7 @@ namespace ThrottleControlledAvionics
         public override void Draw() {}
         public abstract void Disable();
         protected virtual void Resume() {}
+        protected virtual bool UpdateRequiresPhysicsReady => true;
 
         protected void _Update(Action update_action)
         {
@@ -166,7 +167,8 @@ namespace ThrottleControlledAvionics
             {
                 if(!was_active)
                     Resume();
-                update_action();
+                if(!UpdateRequiresPhysicsReady || VSL.Controls.PhysicsReady)
+                    update_action();
             }
             else if(was_active)
                 Disable();

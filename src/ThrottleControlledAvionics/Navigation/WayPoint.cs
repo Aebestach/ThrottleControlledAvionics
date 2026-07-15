@@ -63,6 +63,9 @@ namespace ThrottleControlledAvionics
             return wp;
         }
 
+        /// <summary>Independent copy for sending this target to another vessel.</summary>
+        public WayPoint TransmitCopy() => Clone<WayPoint>();
+
         public double AngleTo(double lat, double lon) { return Pos.AngleTo(lat, lon); }
         public double AngleTo(Coordinates c) { return Pos.AngleTo(c); }
         public double AngleTo(WayPoint wp) { return Pos.AngleTo(wp.Pos); }
@@ -157,6 +160,11 @@ namespace ThrottleControlledAvionics
         {
             if(target == null) return;
             Name = target.GetName();
+            if(target is CelestialBody cb)
+            {
+                Valid = true;
+                return;
+            }
             switch(TargetInfo.targetType)
             {
             case ProtoTargetInfo.Type.Vessel:

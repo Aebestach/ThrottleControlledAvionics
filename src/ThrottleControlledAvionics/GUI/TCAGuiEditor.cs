@@ -45,6 +45,10 @@ namespace ThrottleControlledAvionics
         HighlightSwitcher TCA_highlight, Engines_highlight;
         
         private readonly FloatField MinHorizontalAccel = new FloatField(min:0);
+        private readonly FloatField RangeStartAltitude = new FloatField(min: 0);
+        private readonly FloatField RangeTargetDistance = new FloatField(min: 0);
+        private readonly FloatField RangeMaxCruiseSpeed = new FloatField(min: 1);
+        private readonly FloatField RangeHoverReserve = new FloatField(min: 0);
 
         float WetMass, DryMass, MinTWR, MaxTWR, MinLimit;
         Vector3 CoM = Vector3.zero;
@@ -56,6 +60,14 @@ namespace ThrottleControlledAvionics
 
         bool show_imbalance;
         bool use_wet_mass = true;
+        bool show_range_planner;
+        bool range_allow_parachutes = true;
+        bool range_allow_staging = true;
+        bool range_allow_atmo_assist = true;
+        int range_body_index = -1;
+        MissionScenario range_scenario = MissionScenario.TargetRange;
+        Vector2 range_scroll;
+        static Rect range_planner_pos = new Rect(250, 250, 460, 360);
 
         public override void Awake()
         {
@@ -70,6 +82,10 @@ namespace ThrottleControlledAvionics
             Available = false;
             show_imbalance = false;
             use_wet_mass = true;
+            RangeStartAltitude.Value = 0;
+            RangeTargetDistance.Value = 10000;
+            RangeMaxCruiseSpeed.Value = 100;
+            RangeHoverReserve.Value = LandingTrajectoryAutopilot.C.HoverTimeThreshold;
             //icons
             CoM_Icon = TextureCache.GetTexture(Globals.RADIATION_ICON);
             //highlighters
@@ -455,6 +471,10 @@ namespace ThrottleControlledAvionics
                         else if(GUILayout.Button(Loc.T("EditMacros", "Edit Macros"), Styles.active_button, GUILayout.ExpandWidth(true)))
                             TCAMacroEditor.Edit(CFG);
                     }
+                    Utils.ButtonSwitch(Loc.T("RangePlanner_Button", "Range Planner"),
+                                       ref show_range_planner,
+                                       Loc.T("RangePlanner_ButtonTip", "Estimate hover time, cruise range and ballistic hops for selected bodies."),
+                                       GUILayout.ExpandWidth(true));
                     if(GUILayout.Button(Loc.Content("SaveAsDefault", "Save As Default", "SaveAsDefaultTip", "Save current configuration as default for new ships in this facility (VAB/SPH)"),
                                         Styles.active_button, GUILayout.ExpandWidth(true)))
                     {
@@ -599,6 +619,216 @@ namespace ThrottleControlledAvionics
             TooltipsAndDragWindow();
         }
 
+        CelestialBody range_body()
+        {
+            if(FlightGlobals.Bodies == null || FlightGlobals.Bodies.Count == 0)
+                return null;
+            if(range_body_index < 0)
+                range_body_index = FlightGlobals.GetHomeBodyIndex();
+            range_body_index = Mathf.Clamp(range_body_index, 0, FlightGlobals.Bodies.Count - 1);
+            return FlightGlobals.Bodies[range_body_index];
+        }
+
+        void draw_body_selector()
+        {
+            var body = range_body();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_Body", "Body:"), GUILayout.Width(90));
+            if(GUILayout.Button("<", Styles.active_button, GUILayout.Width(25)))
+                range_body_index = (range_body_index + FlightGlobals.Bodies.Count - 1) % FlightGlobals.Bodies.Count;
+            GUILayout.Label(body != null ? body.GetName() : "N/A", Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(GUILayout.Button(">", Styles.active_button, GUILayout.Width(25)))
+                range_body_index = (range_body_index + 1) % FlightGlobals.Bodies.Count;
+            GUILayout.EndHorizontal();
+        }
+
+        void draw_scenario_selector()
+        {
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_Scenario", "Scenario:"), GUILayout.Width(90));
+            if(GUILayout.Button("<", Styles.active_button, GUILayout.Width(25)))
+                range_scenario = (MissionScenario)(((int)range_scenario + 4) % 5);
+            GUILayout.Label(range_scenario_label(range_scenario), Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(GUILayout.Button(">", Styles.active_button, GUILayout.Width(25)))
+                range_scenario = (MissionScenario)(((int)range_scenario + 1) % 5);
+            GUILayout.EndHorizontal();
+        }
+
+        static string range_scenario_label(MissionScenario scenario)
+        {
+            switch(scenario)
+            {
+            case MissionScenario.Hover:
+                return Loc.T("RangePlanner_ScenarioHover", "Hover");
+            case MissionScenario.PoweredCruise:
+                return Loc.T("RangePlanner_ScenarioCruise", "Powered Cruise");
+            case MissionScenario.BallisticHop:
+                return Loc.T("RangePlanner_ScenarioHop", "Ballistic Hop");
+            case MissionScenario.RepeatedHops:
+                return Loc.T("RangePlanner_ScenarioRepeatedHops", "Repeated Hops");
+            default:
+                return Loc.T("RangePlanner_ScenarioTarget", "Target Range");
+            }
+        }
+
+        static string format_range_time(float seconds)
+        {
+            if(seconds <= 0 || float.IsNaN(seconds) || float.IsInfinity(seconds))
+                return "N/A";
+            return KSPUtil.PrintDateDeltaCompact(seconds, true, true);
+        }
+
+        static string format_range_recommendation(MissionRecommendation recommendation)
+        {
+            switch(recommendation)
+            {
+            case MissionRecommendation.GoTo:
+                return Loc.T("RangePlanner_RecommendGoTo", "Go To");
+            case MissionRecommendation.BallisticJump:
+                return Loc.T("RangePlanner_RecommendJump", "Jump To");
+            default:
+                return Loc.T("RangePlanner_RecommendNone", "No safe mode");
+            }
+        }
+
+        EnginesDB range_planning_engines(out bool used_default_engines)
+        {
+            used_default_engines = false;
+            if(ActiveEngines.Count > 0)
+                return ActiveEngines;
+            var fallback = new EnginesDB();
+            for(int i = 0, count = Engines.Count; i < count; i++)
+            {
+                var e = Engines[i];
+                if(e?.engine == null)
+                    continue;
+                e.throttle = e.VSF = e.thrustMod = 1;
+                e.UpdateThrustInfo();
+                e.InitLimits();
+                if(!e.isThruster)
+                    continue;
+                e.limit = e.best_limit = 1f;
+                fallback.Add(e);
+            }
+            used_default_engines = fallback.Count > 0;
+            return fallback;
+        }
+
+        MissionPredictionResult editor_range_prediction()
+        {
+            if(EditorLogic.fetch == null || EditorLogic.fetch.ship == null)
+                return null;
+            var body = range_body();
+            var area = Mathf.Max(Mathf.Pow(Mathf.Max(Mass, 1), 2f / 3f), 1);
+            var range_engines = range_planning_engines(out var used_default_engines);
+            var snapshot = MissionPerformanceSnapshot.FromEditor(EditorLogic.fetch.ship,
+                                                                  range_engines,
+                                                                  WetMass,
+                                                                  DryMass,
+                                                                  area);
+            if(snapshot.EditorSnapshot)
+                snapshot.Warnings.Add(Loc.T("RangePlanner_EditorAreaWarning", "Editor aerodynamic area is estimated from vessel mass until flight data is available."));
+            if(used_default_engines)
+                snapshot.Warnings.Add(Loc.T("RangePlanner_EditorAllEnginesWarning", "The range estimate uses all detected engines at full thrust."));
+            var profile = new MissionProfile
+            {
+                Body = body,
+                Scenario = range_scenario,
+                StartAltitude = RangeStartAltitude,
+                TargetDistance = RangeTargetDistance,
+                MaxCruiseSpeed = RangeMaxCruiseSpeed,
+                HoverReserveTime = RangeHoverReserve,
+                AllowParachutes = range_allow_parachutes,
+                AllowStaging = range_allow_staging,
+                AllowAtmosphericAssist = range_allow_atmo_assist
+            };
+            return MissionRangePlanner.Evaluate(snapshot, profile);
+        }
+
+        void draw_range_results(MissionPredictionResult result)
+        {
+            if(result == null)
+                return;
+            if(!result.Valid)
+            {
+                GUILayout.Label(result.Status, Styles.warning, GUILayout.ExpandWidth(true));
+                return;
+            }
+            GUILayout.Label(Loc.F("RangePlanner_ResultHover", "Hover time: <<1>>", format_range_time(result.HoverTime)),
+                            Styles.boxed_label, GUILayout.ExpandWidth(true));
+            GUILayout.Label(Loc.F("RangePlanner_ResultCruise", "Powered cruise range: <<1>>",
+                                  Utils.formatBigValue(result.PoweredCruiseRange, "m")),
+                            Styles.boxed_label, GUILayout.ExpandWidth(true));
+            GUILayout.Label(Loc.F("RangePlanner_ResultHop", "Best hop: <<1>> using <<2>> fuel",
+                                  Utils.formatBigValue(result.BestHopDistance, "m"),
+                                  Utils.formatMass(result.BestHopFuel)),
+                            Styles.boxed_label, GUILayout.ExpandWidth(true));
+            GUILayout.Label(Loc.F("RangePlanner_ResultRepeatedHops", "Repeated hops: <<1>> for <<2>> total",
+                                  result.HopCount,
+                                  Utils.formatBigValue(result.TotalHopRange, "m")),
+                            Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(RangeTargetDistance > 0)
+                GUILayout.Label(Loc.F("RangePlanner_ResultTarget", "Target recommendation: <<1>> | Go To <<2>> | Jump <<3>>",
+                                      format_range_recommendation(result.Recommendation),
+                                      Utils.formatMass(result.TargetGoToFuel),
+                                      Utils.formatMass(result.TargetJumpFuel)),
+                              Styles.boxed_label, GUILayout.ExpandWidth(true));
+            GUILayout.Label(Loc.F("RangePlanner_ResultReserve", "Reserve fuel: <<1>> | Confidence: <<2>>",
+                                  Utils.formatMass(result.ReserveFuel),
+                                  result.Confidence.ToString("P0")),
+                          Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(result.MaxDynamicPressure > 0)
+                GUILayout.Label(Loc.F("RangePlanner_ResultDynPressure", "Cruise dynamic pressure: <<1>> kPa",
+                                      result.MaxDynamicPressure.ToString("F2")),
+                              Styles.boxed_label, GUILayout.ExpandWidth(true));
+            foreach(var warning in result.Warnings)
+                GUILayout.Label(warning, Styles.warning, GUILayout.ExpandWidth(true));
+        }
+
+        void DrawRangePlannerWindow(int windowID)
+        {
+            GUILayout.BeginVertical();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_Title", "Range Planner"), Styles.boxed_label, GUILayout.ExpandWidth(true));
+            if(GUILayout.Button("X", Styles.close_button, GUILayout.Width(25)))
+                show_range_planner = false;
+            GUILayout.EndHorizontal();
+            draw_body_selector();
+            draw_scenario_selector();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_StartAltitude", "Start altitude:"), GUILayout.Width(130));
+            RangeStartAltitude.Draw("m", 100, "F0", suffix_width: 30);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_TargetDistance", "Target distance:"), GUILayout.Width(130));
+            RangeTargetDistance.Draw("m", 1000, "F0", suffix_width: 30);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_MaxCruiseSpeed", "Max cruise speed:"), GUILayout.Width(130));
+            RangeMaxCruiseSpeed.Draw("m/s", 10, "F0", suffix_width: 35);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            GUILayout.Label(Loc.T("RangePlanner_HoverReserve", "Hover reserve:"), GUILayout.Width(130));
+            RangeHoverReserve.Draw("s", 10, "F0", suffix_width: 30);
+            GUILayout.EndHorizontal();
+            GUILayout.BeginHorizontal();
+            Utils.ButtonSwitch(Loc.T("RangePlanner_AllowChutes", "Chutes"), ref range_allow_parachutes,
+                               Loc.T("RangePlanner_AllowChutesTip", "Allow parachutes as a landing reserve assumption."),
+                               GUILayout.ExpandWidth(true));
+            Utils.ButtonSwitch(Loc.T("RangePlanner_AllowStaging", "Staging"), ref range_allow_staging,
+                               Loc.T("RangePlanner_AllowStagingTip", "Include conservative staged fuel segments in warnings and delta-v context."),
+                               GUILayout.ExpandWidth(true));
+            Utils.ButtonSwitch(Loc.T("RangePlanner_AllowAtmoAssist", "Atmo Assist"), ref range_allow_atmo_assist,
+                               Loc.T("RangePlanner_AllowAtmoAssistTip", "Allow atmospheric drag/parachute assumptions where available."),
+                               GUILayout.ExpandWidth(true));
+            GUILayout.EndHorizontal();
+            range_scroll = GUILayout.BeginScrollView(range_scroll, GUILayout.Height(150));
+            draw_range_results(editor_range_prediction());
+            GUILayout.EndScrollView();
+            GUIWindowBase.TooltipsAndDragWindow();
+            GUILayout.EndVertical();
+        }
+
         protected override bool can_draw() { return Available; }
 
         static void highlight_engine(ThrusterWrapper e)
@@ -656,6 +886,14 @@ namespace ThrottleControlledAvionics
                 Markers.DrawWorldMarker(WetCoM, Colors.Active, Loc.T("CenterOfMass", "Center of Mass"), CoM_Icon);
                 Markers.DrawWorldMarker(DryCoM, Colors.Danger, Loc.T("CenterOfDryMass", "Center of Dry Mass"), CoM_Icon);
             }
+            if(show_range_planner)
+                range_planner_pos =
+                    GUILayout.Window(GetInstanceID() + 1001,
+                                     range_planner_pos,
+                                     DrawRangePlannerWindow,
+                                     Loc.T("RangePlanner_Title", "Range Planner"),
+                                     GUILayout.Width(460),
+                                     GUILayout.Height(360)).clampToScreen();
         }
 
         class HighlightSwitcher

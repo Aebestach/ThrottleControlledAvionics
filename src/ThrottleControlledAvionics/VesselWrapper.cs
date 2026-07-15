@@ -187,6 +187,41 @@ namespace ThrottleControlledAvionics
                 return wp;
             }
         }
+
+        /// <summary>Current TCA/KSP target for UI and transmission.</summary>
+        public WayPoint ResolveTarget()
+        {
+            if(CFG.Target)
+            {
+                CFG.Target.Update(this);
+                return CFG.Target;
+            }
+            var kspTarget = vessel.targetObject;
+            if(kspTarget == null)
+                return null;
+            if(kspTarget is WayPoint wp)
+            {
+                wp.Update(this);
+                return wp;
+            }
+            return new WayPoint(kspTarget);
+        }
+
+        public void ReceiveTransmittedTarget(WayPoint wp)
+        {
+            if(wp == null)
+                return;
+            wp.Update(this);
+            if(!wp)
+                return;
+            var t = wp.GetTarget();
+            if(IsActiveVessel)
+                FlightGlobals.fetch.SetVesselTarget(t, true);
+            else
+                Target = t;
+            CFG.Target = wp;
+            CFG.Target.Update(this);
+        }
         #endregion
 
         #region Utils
@@ -409,15 +444,42 @@ namespace ThrottleControlledAvionics
             Geometry.InvalidateBounds();
         }
 
+        const double MinAutoStageCooldown = 0.5;
+        const double AutoStageEngineSettleTimeout = 2.0;
+
+        double last_auto_stage_ut = double.NegativeInfinity;
+        double auto_stage_wait_until = double.NegativeInfinity;
+        bool auto_stage_wait_for_engines;
+        int auto_stage_wait_stage = -1;
+
+        double auto_stage_now => Physics != null ? Physics.UT : Planetarium.GetUniversalTime();
+
+        double auto_stage_cooldown => Math.Max(MinAutoStageCooldown, PhysicsGlobals.StagingCooldownTimer);
+
+        bool auto_stage_wait_finished()
+        {
+            if(!auto_stage_wait_for_engines)
+                return true;
+            if(auto_stage_now >= auto_stage_wait_until)
+                return true;
+            return Engines != null && Engines.AutostageEngineReady;
+        }
+
         bool stage_is_empty(int stage)
         { return !vessel.parts.Any(p => p.hasStagingIcon && p.inverseStage == stage); }
 
-        public void ActivateNextStageImmidiate()
+        public int NextStageToActivate()
         {
             var next_stage = vessel.currentStage;
             while(next_stage >= 0 && stage_is_empty(next_stage)) next_stage--;
             if(next_stage == vessel.currentStage) next_stage--;
-            if(next_stage < 0) return;
+            return next_stage;
+        }
+
+        public bool ActivateNextStageImmidiate()
+        {
+            var next_stage = NextStageToActivate();
+            if(next_stage < 0) return false;
             //Log(vessel.parts.Aggregate("\n", (s, p) => s+Utils.Format("{}: {}, stage {}\n", p.Title(), p.State, p.inverseStage)));//debug
             //Log("current stage {}, next stage {}, next engines {}", vessel.currentStage, next_stage, Engines.NearestEnginedStage);//debug
             if(IsActiveVessel)
@@ -434,9 +496,26 @@ namespace ThrottleControlledAvionics
                 vessel.currentStage = next_stage;
                 vessel.ActionGroups.ToggleGroup(KSPActionGroup.Stage);
             }
+            return true;
         }
         readonly ActionDamper next_cooldown = new ActionDamper(0.5);
-        public void ActivateNextStage() { next_cooldown.Run(ActivateNextStageImmidiate); }
+        public void ActivateNextStage() { next_cooldown.Run(() => ActivateNextStageImmidiate()); }
+
+        public bool RequestAutoStage(bool wait_for_engines = true)
+        {
+            var now = auto_stage_now;
+            if(auto_stage_wait_stage == vessel.currentStage && !auto_stage_wait_finished())
+                return false;
+            if(now - last_auto_stage_ut < auto_stage_cooldown)
+                return false;
+            if(!ActivateNextStageImmidiate())
+                return false;
+            last_auto_stage_ut = now;
+            auto_stage_wait_stage = vessel.currentStage;
+            auto_stage_wait_for_engines = wait_for_engines;
+            auto_stage_wait_until = now + Math.Max(auto_stage_cooldown, AutoStageEngineSettleTimeout);
+            return true;
+        }
 
         public void XToggleWithEngines<T>(Multiplexer<T> mp, T cmd) where T : struct
         {

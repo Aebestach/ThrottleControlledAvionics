@@ -115,6 +115,11 @@ namespace ThrottleControlledAvionics
             Next.Prev = this; 
             Next.SetSelector(SelectCondition); 
         }
+
+        public virtual void CommitEdits()
+        {
+            if(Next != null) Next.CommitEdits();
+        }
     }
 
     [ComponentInfo(Hidden = true)]
@@ -143,6 +148,17 @@ namespace ThrottleControlledAvionics
             not &= negatable;
             WaitTimer.Period = Period;
             WaitTimer.Reset();
+        }
+
+        public override void CommitEdits()
+        {
+            Value.UpdateValue();
+            Error.UpdateValue();
+            Period.UpdateValue();
+            negatable = Period.Equals(0);
+            not &= negatable;
+            WaitTimer.Period = Period;
+            base.CommitEdits();
         }
 
         protected override void DrawThis()

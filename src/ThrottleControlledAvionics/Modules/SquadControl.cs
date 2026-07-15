@@ -17,6 +17,13 @@ namespace ThrottleControlledAvionics
     [CareerPart]
     public class SquadControl : TCAModule
     {
+        public class Config : ComponentConfig<Config>
+        {
+            [Persistent] public float MaxTransmitDistance = 100000f; //m
+        }
+
+        public static Config C => Config.INST;
+
         public SquadControl(ModuleTCA tca) : base(tca) {}
 
         public bool SquadMode;
@@ -69,6 +76,20 @@ namespace ThrottleControlledAvionics
             return IsCommReachable(TCA, tca);
         }
 
+        bool is_near_enough(ModuleTCA tca)
+        {
+            var maxDist = C.MaxTransmitDistance;
+            if(maxDist <= 0)
+                return true;
+            return (TCA.vessel.transform.position - tca.vessel.transform.position).sqrMagnitude
+                   <= maxDist * maxDist;
+        }
+
+        bool is_squad_member(ModuleTCA tca)
+        {
+            return !SquadMode || CFG.Squad <= 0 || (tca.CFG.Squad > 0 && tca.CFG.Squad == CFG.Squad);
+        }
+
         void apply_to_others(Action<ModuleTCA> action)
         {
             if(TCA.CFG.Squad == 0 || !SquadMode) return;
@@ -87,6 +108,37 @@ namespace ThrottleControlledAvionics
                 executed = true;
             }
             if(executed) Message(Loc.T("Squad_ActionExecuted", "Squad Action Executed"));
+        }
+
+        public int TransmitTarget()
+        {
+            var source = VSL.ResolveTarget();
+            if(source == null)
+            {
+                Message(Loc.T("TargetTransmit_NoTarget", "No target selected to transmit."));
+                return 0;
+            }
+            var count = 0;
+            for(int i = 0, num_vessels = FlightGlobals.Vessels.Count; i < num_vessels; i++)
+            {
+                var v = FlightGlobals.Vessels[i];
+                if(v == null || v == VSL.vessel || !v.loaded) continue;
+                var tca = ModuleTCA.EnabledTCA(v);
+                if(tca == null || !tca.Available) continue;
+                if(!is_squad_member(tca)) continue;
+                if(!is_comm_reachable(tca)) continue;
+                if(!is_near_enough(tca)) continue;
+                UnpackVessel(TCA.vessel, v);
+                tca.VSL.ReceiveTransmittedTarget(source.TransmitCopy());
+                count++;
+            }
+            if(count > 0)
+                Message(Loc.F("TargetTransmit_Success", "Target transmitted to <<1>> nearby vessel(s).", count.ToString()));
+            else
+                Message(Loc.T("TargetTransmit_NoRecipients",
+                    "No nearby vessels received the target.\n"
+                    + "Check squad ID, antennas, and distance."));
+            return count;
         }
 
         public void Apply(Action<ModuleTCA> action)
@@ -129,4 +181,3 @@ namespace ThrottleControlledAvionics
         }
     }
 }
-

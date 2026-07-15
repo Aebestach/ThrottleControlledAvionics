@@ -17,7 +17,7 @@ namespace ThrottleControlledAvionics
         class InfoWindow : ControlSubwindow
         {
             protected override bool can_draw()
-            { return VSL.Info.Countdown >= 0 || VSL.Info.TTB >= 0; }
+            { return !VSL.Controls.PhysicsReady || VSL.Info.Countdown >= 0 || VSL.Info.TTB >= 0; }
 
             protected override void MainWindow(int windowID)
             { 
@@ -40,7 +40,7 @@ namespace ThrottleControlledAvionics
             GUILayout.BeginHorizontal();
             if(WRP != null) WRP.Draw();
             if(MAN != null && VSL.HasManeuverNode) MAN.Draw();
-            if(VSL.Info.TTB >= 0 || VSL.Info.Countdown >= 0)
+            if(!VSL.Controls.PhysicsReady || VSL.Info.TTB >= 0 || VSL.Info.Countdown >= 0)
                 VSL.Info.Draw();
             GUILayout.EndHorizontal();
         }

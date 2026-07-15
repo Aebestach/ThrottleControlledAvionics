@@ -13,6 +13,7 @@ namespace ThrottleControlledAvionics
         private Radar RAD;
         private HorizontalSpeedControl HSC;
         private PointNavigator NAV;
+        private FollowAutopilot FLL;
         private Anchor anchor;
 
         protected override void init_controller()
@@ -31,7 +32,7 @@ namespace ThrottleControlledAvionics
                 Controller.VesselCollision.Show(false);
             if(RAD == null)
                 Controller.TerrainCollision.Show(false);
-            if(NAV == null)
+            if(NAV == null && FLL == null)
                 Controller.Navigation.Show(false);
             if(HSC == null)
                 Controller.Stop.Show(false);
@@ -119,7 +120,8 @@ namespace ThrottleControlledAvionics
                                    || TCAModule.ExistsAndActive(anchor);
             Controller.Navigation.isOn = CFG.Nav.Any(Navigation.GoToTarget,
                 Navigation.FollowPath,
-                Navigation.FollowTarget);
+                Navigation.FollowTarget,
+                Navigation.HoverDocking);
             // fade out irrelevant indicators
             Controller.TerrainCollision.SetActive(TCAModule.ExistsAndActive(RAD));
             Controller.VesselCollision.SetActive(CFG.UseCPS);

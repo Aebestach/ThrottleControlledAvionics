@@ -44,6 +44,14 @@ namespace ThrottleControlledAvionics
 
         public bool  Aligned { get; private set; } = true;
         public bool  CanWarp { get; private set; } = true;
+        public bool  PhysicsReady { get; private set; } = true;
+        public float PhysicsReadyCountdown { get; private set; }
+
+        public void SetPhysicsReady(bool ready, float countdown)
+        {
+            PhysicsReady = ready;
+            PhysicsReadyCountdown = countdown;
+        }
         public float AttitudeError { get; private set; }
         public float MinAlignmentTime { get; private set; }
         public float AlignmentFactor { get; private set; }

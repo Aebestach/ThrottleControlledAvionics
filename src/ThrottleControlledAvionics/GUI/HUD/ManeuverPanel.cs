@@ -87,7 +87,18 @@ namespace ThrottleControlledAvionics
                 else
                     Controller.ManeuverSwitch.SetActive(false);
             }
-            if(VSL.Info.TTB >= 0 || VSL.Info.Countdown >= 0)
+            if(!VSL.Controls.PhysicsReady)
+            {
+                Controller.ManeuverInfo.SetActive(true);
+                if(VSL.Controls.PhysicsReadyCountdown > 0)
+                    Controller.ManeuverInfo.UpdatePhysicsState(
+                        string.Format(Loc.T("PhysicsReady_Cooldown", "Physics cooldown: {0:F1}s"),
+                                      VSL.Controls.PhysicsReadyCountdown));
+                else
+                    Controller.ManeuverInfo.UpdatePhysicsState(
+                        Loc.T("PhysicsReady_WaitWarp", "Waiting for time warp to end..."));
+            }
+            else if(VSL.Info.TTB >= 0 || VSL.Info.Countdown >= 0)
             {
                 Controller.ManeuverInfo.SetActive(true);
                 Controller.ManeuverInfo.UpdateInfo((float)VSL.Info.Countdown, VSL.Info.TTB);

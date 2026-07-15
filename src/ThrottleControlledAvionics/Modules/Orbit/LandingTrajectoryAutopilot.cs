@@ -140,7 +140,7 @@ namespace ThrottleControlledAvionics
                 {
                     if(Best == null)
                         return Loc.T("Landing_ComputingTrajectory", "Computing landing trajectory...");
-                    return Loc.F("Landing_ComputingTrajectoryError", "Computing landing trajectory.\n" + "Landing site error: {0}",
+                    return Loc.F("Landing_ComputingTrajectoryError", "Computing landing trajectory.\nLanding site error: <<1>>",
                         Utils.formatBigValue((float)Best.DistanceToTarget, "m"));
                 }
             }
@@ -530,9 +530,9 @@ namespace ThrottleControlledAvionics
             CFG.BlockThrottle = true;
             CFG.AltitudeAboveTerrain = true;
             CFG.VF.On(VFlight.AltitudeControl);
-            CFG.DesiredAltitude = C.ApproachAlt < VSL.Altitude.Relative / 2
+            CFG.DesiredAltitude = bottom_control_altitude(C.ApproachAlt < VSL.Altitude.BottomRelative / 2
                 ? C.ApproachAlt
-                : Utils.ClampL(VSL.Altitude.Relative / 2, VSL.Geometry.H * 2);
+                : Utils.ClampL(VSL.Altitude.BottomRelative / 2, VSL.Geometry.BottomH * 2));
             SetTarget(CFG.Target);
             CFG.Nav.On(Navigation.GoToTarget);
             if(CFG.Target.IsVessel)
@@ -561,10 +561,10 @@ namespace ThrottleControlledAvionics
         private void compute_terminal_velocity()
         {
             terminal_velocity = 0;
-            if(VSL.VerticalSpeed.Absolute > -100 || VSL.Altitude.Relative < 100 + VSL.Geometry.H)
+            if(VSL.VerticalSpeed.Absolute > -100 || VSL.Altitude.BottomRelative < 100)
             {
                 terminal_velocity = Utils.ClampL(-VSL.VerticalSpeed.Absolute, 0.1f);
-                VSL.Info.Countdown = (VSL.Altitude.Relative - VSL.Geometry.H) / terminal_velocity;
+                VSL.Info.Countdown = VSL.Altitude.BottomRelative / terminal_velocity;
             }
             else
             {
@@ -572,6 +572,9 @@ namespace ThrottleControlledAvionics
                 VSL.Info.Countdown = trajectory.TimeToTarget;
             }
         }
+
+        private float bottom_control_altitude(float bottom_altitude)
+        { return bottom_altitude >= 0 ? bottom_altitude + VSL.Geometry.BottomH : bottom_altitude; }
 
         private void setup_for_deceleration()
         {
@@ -731,7 +734,7 @@ namespace ThrottleControlledAvionics
                 scanner.Start(CFG.Target.Pos, C.PointsPerFrame, 0.01);
                 scanner.MaxDist = CorrectionMaxDist.Value * 1000;
             }
-            Status(Loc.F("Lander_ScanningSurface", "Scanning for {0} surface to land: {1}",
+            Status(Loc.F("Lander_ScanningSurface", "Scanning for <<1>> surface to land: <<2>>",
                 Colors.Active.Tag("<b>flat</b>"),
                 Colors.Good.Tag(scanner.Progress.ToString("P1"))));
             if(scanner.Scan())
@@ -921,7 +924,7 @@ namespace ThrottleControlledAvionics
                         start_landing();
                         break;
                     }
-                    Status(Loc.F("Landing_DeceleratingError", "Decelerating. Landing site error: {0}",
+                    Status(Loc.F("Landing_DeceleratingError", "Decelerating. Landing site error: <<1>>",
                         Utils.formatBigValue((float)trajectory.DistanceToTarget, "m")));
                     scan_for_landing_site();
                     do_aerobraking_if_requested();
@@ -973,7 +976,7 @@ namespace ThrottleControlledAvionics
                     landing_trajectory = null;
                     break;
                 case LandingStage.Coast:
-                    Status(Loc.F("Landing_CoastingError", "Coasting. Landing site error: {0}",
+                    Status(Loc.F("Landing_CoastingError", "Coasting. Landing site error: <<1>>",
                         Utils.formatBigValue((float)trajectory.DistanceToTarget, "m")));
                     scan_for_landing_site();
                     if(is_overheating())
@@ -1168,10 +1171,10 @@ namespace ThrottleControlledAvionics
                         {
                             // ReSharper disable once ConvertIfStatementToConditionalTernaryExpression
                             if(VSL.Controls.InvAlignmentFactor > 0.5)
-                                Status(Loc.F("Landing_FinalDecelAttitude", "Final deceleration: correcting attitude.\nLanding site error: {0}",
+                                Status(Loc.F("Landing_FinalDecelAttitude", "Final deceleration: correcting attitude.\nLanding site error: <<1>>",
                                     Utils.formatBigValue((float)trajectory.DistanceToTarget, "m")));
                             else
-                                Status(Loc.F("Landing_FinalDecelWait", "Final deceleration: waiting for the burn.\nLanding site error: {0}",
+                                Status(Loc.F("Landing_FinalDecelWait", "Final deceleration: waiting for the burn.\nLanding site error: <<1>>",
                                     Utils.formatBigValue((float)trajectory.DistanceToTarget, "m")));
                             break;
                         }
@@ -1210,11 +1213,11 @@ namespace ThrottleControlledAvionics
                         }
                         else
                             THR.Throttle = 1;
-                        if(VSL.Altitude.Relative > AutoLander.C.StopAtH * VSL.Geometry.D
+                        if(VSL.Altitude.BottomRelative > AutoLander.C.StopAtH * VSL.Geometry.BottomH
                            && VSL.VerticalSpeed.Absolute < 0)
                         {
                             Working = THR.Throttle > 0.7 || VSL.Info.Countdown < 10;
-                            Status(Loc.F("Landing_FinalDecel", "Final deceleration. Landing site error: {0}",
+                            Status(Loc.F("Landing_FinalDecel", "Final deceleration. Landing site error: <<1>>",
                                 Utils.formatBigValue((float)trajectory.DistanceToTarget, "m")));
                             break;
                         }
@@ -1241,7 +1244,8 @@ namespace ThrottleControlledAvionics
                     if(CFG.DesiredAltitude >= 0 && !VSL.HorizontalSpeed.MoovingFast)
                         CFG.DesiredAltitude = 0;
                     else
-                        CFG.DesiredAltitude = Utils.ClampL(VSL.Altitude.Relative / 2, VSL.Geometry.H * 2);
+                        CFG.DesiredAltitude = bottom_control_altitude(
+                            Utils.ClampL(VSL.Altitude.BottomRelative / 2, VSL.Geometry.BottomH * 2));
                     break;
                 case LandingStage.Approach:
                     Status(Loc.T("Landing_ApproachingTarget", "Approaching the target..."));

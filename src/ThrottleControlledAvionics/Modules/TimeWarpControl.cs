@@ -7,6 +7,7 @@
 // To view a copy of this license, visit http://creativecommons.org/licenses/by-sa/4.0/ 
 // or send a letter to Creative Commons, PO Box 1866, Mountain View, CA 94042, USA.
 
+using System;
 using UnityEngine;
 using AT_Utils;
 
@@ -17,28 +18,35 @@ namespace ThrottleControlledAvionics
     {
         public class Config : ComponentConfig<Config>
         {
-            [Persistent] public float DewarpTime   = 20f;  //sec
-            [Persistent] public float MaxWarp      = 10000f;
-            [Persistent] public int   FramesToSkip = 3;
-            [Persistent] public float WarpStepRealTime   = 1f;    //sec
+            [Persistent] public float DewarpTime        = 20f;  //sec, safety margin subtracted from warp target
+            [Persistent] public float MaxWarp           = 10000f;
+            [Persistent] public int   FramesToSkip      = 3;
+            [Persistent] public bool  UseQuickWarp      = true;
+            [Persistent] public float WarpIncreaseDelay = 2f;   //sec game time between warp rate increases
             [Persistent] public float WarpRateTolerance   = 0.02f; //relative
-            [Persistent] public float DewarpSafetyMargin  = 2f;    //sec
+            [Persistent] public float PostWarpSettleTime  = 5f;    //sec
         }
         public static Config C => Config.INST;
 
         public TimeWarpControl(ModuleTCA tca) : base(tca) {}
 
+        protected override bool UpdateRequiresPhysicsReady => false;
+
         int last_warp_index;
+        int last_asked_index;
         int frames_to_skip;
-        bool waiting_for_warp_step;
-        int commanded_warp_index = -1;
-        float commanded_warp_rate = 1;
-        float warp_step_started_at;
+        double warp_increase_attempt_time;
+        bool require_settle_after_warp;
+        float physics_ready_at = -1;
+
+        public bool PhysicsReady { get; private set; } = true;
+        public float PhysicsReadyCountdown { get; private set; }
 
         public void AbortWarp(bool instant = false)
         {
             VSL.Controls.AbortWarp(instant);
-            reset_warp_step();
+            require_settle_after_warp = true;
+            physics_ready_at = -1;
             Reset();
         }
 
@@ -60,7 +68,12 @@ namespace ThrottleControlledAvionics
             base.Init();
             frames_to_skip = -1;
             last_warp_index = TimeWarp.CurrentRateIndex;
-            reset_warp_step();
+            last_asked_index = TimeWarp.CurrentRateIndex;
+            require_settle_after_warp = false;
+            physics_ready_at = -1;
+            warp_increase_attempt_time = 0;
+            PhysicsReady = true;
+            PhysicsReadyCountdown = 0;
             GameEvents.onVesselSOIChanged.Add(OnSOIChanged);
         }
 
@@ -72,88 +85,211 @@ namespace ThrottleControlledAvionics
             AbortWarp();
         }
 
-        void reset_warp_step()
-        {
-            waiting_for_warp_step = false;
-            commanded_warp_index = -1;
-            commanded_warp_rate = 1;
-            warp_step_started_at = 0;
-        }
-
         bool rate_settled(float target_rate)
         {
             var tolerance = Mathf.Max(0.01f, Mathf.Abs(target_rate)*C.WarpRateTolerance);
             return Mathf.Abs(TimeWarp.CurrentRate-target_rate) <= tolerance;
         }
 
-        bool warp_step_settled
+        bool actively_warping =>
+            TimeWarp.CurrentRateIndex > 0
+            || !rate_settled(1f)
+            || VSL.Controls.WarpToTime >= 0;
+
+        public void UpdatePhysicsReadyState()
         {
-            get
+            if(actively_warping)
             {
-                if(!waiting_for_warp_step)
-                    return true;
-                if(TimeWarp.fetch == null ||
-                   commanded_warp_index < 0 ||
-                   commanded_warp_index >= TimeWarp.fetch.warpRates.Length)
-                {
-                    reset_warp_step();
-                    return true;
-                }
-                if(Time.realtimeSinceStartup-warp_step_started_at < Mathf.Max(C.WarpStepRealTime, 0))
-                    return false;
-                if(TimeWarp.CurrentRateIndex != commanded_warp_index)
-                    return false;
-                if(!rate_settled(commanded_warp_rate))
-                    return false;
-                reset_warp_step();
-                return true;
+                require_settle_after_warp = true;
+                physics_ready_at = -1;
+                PhysicsReady = false;
+                PhysicsReadyCountdown = 0;
+                VSL.Controls.SetPhysicsReady(false, 0);
+                return;
             }
+            if(!require_settle_after_warp)
+            {
+                PhysicsReady = true;
+                PhysicsReadyCountdown = 0;
+                VSL.Controls.SetPhysicsReady(true, 0);
+                return;
+            }
+            if(physics_ready_at < 0)
+                physics_ready_at = Time.realtimeSinceStartup;
+            var settle_time = Mathf.Max(C.PostWarpSettleTime, 0);
+            PhysicsReadyCountdown = Mathf.Max(0, settle_time-(Time.realtimeSinceStartup-physics_ready_at));
+            PhysicsReady = PhysicsReadyCountdown <= 0;
+            if(PhysicsReady)
+                require_settle_after_warp = false;
+            VSL.Controls.SetPhysicsReady(PhysicsReady, PhysicsReadyCountdown);
         }
 
-        bool expected_warp_decrease =>
-            waiting_for_warp_step &&
-            commanded_warp_index >= 0 &&
-            TimeWarp.CurrentRateIndex == commanded_warp_index;
-
-        void set_warp_rate(int rate_index)
+        public static void UpdatePhysicsReadyFallback(ControlProps ctrl)
         {
-            var current_index = TimeWarp.CurrentRateIndex;
-            if(rate_index == current_index)
+            var tolerance = Mathf.Max(0.01f, C.WarpRateTolerance);
+            var at_1x = TimeWarp.CurrentRateIndex == 0 && Mathf.Abs(TimeWarp.CurrentRate-1f) <= tolerance;
+            ctrl.SetPhysicsReady(at_1x, 0);
+        }
+
+        double effective_warp_target(double target_ut)
+        {
+            if(VSL.Controls.NoDewarpOffset)
+                return target_ut;
+            return target_ut-C.DewarpTime/(VSL.LandedOrSplashed? 2 : 1);
+        }
+
+        void set_warp_rate(int rate_index, bool instant)
+        {
+            if(rate_index == TimeWarp.CurrentRateIndex)
                 return;
-            if(rate_index > current_index)
-                TimeWarp.SetRate(rate_index, false, false);
-            else
-                TimeWarp.SetRate(rate_index, false);
-            commanded_warp_index = rate_index;
-            commanded_warp_rate = TimeWarp.fetch.warpRates[rate_index];
-            warp_step_started_at = Time.realtimeSinceStartup;
-            waiting_for_warp_step = true;
+            last_asked_index = rate_index;
+            TimeWarp.SetRate(rate_index, instant);
             frames_to_skip = -1;
         }
 
-        double TimeNeededToDewarpFrom(int rate_index)
+        bool CheckRegularWarp()
         {
-            var safety_margin = Mathf.Max(C.DewarpSafetyMargin, 0);
-            if(TimeWarp.fetch == null)
-                return safety_margin;
-            var rates = TimeWarp.fetch.warpRates;
-            if(rates == null || rates.Length == 0)
-                return safety_margin;
-            var index = Mathf.Clamp(rate_index, 0, rates.Length-1);
-            var step_time = Mathf.Max(C.WarpStepRealTime, 0);
-            double time_needed = safety_margin;
-            for(var i = index; i > 0; i--)
-                time_needed += (rates[i]+rates[i-1])*0.5*step_time;
-            return time_needed;
+            if(TimeWarp.WarpMode != TimeWarp.Modes.HIGH)
+            {
+                var instant_altitude_asl = VSL.orbit.radius-VSL.Body.Radius;
+                if(!VSL.Body.atmosphere || instant_altitude_asl > VSL.Body.atmosphereDepth)
+                {
+                    TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
+                    set_warp_rate(0, true);
+                }
+                return false;
+            }
+            return true;
         }
 
-        // TimeWarp changes timescale from one rate to the next in real time.
-        // Budget every step so TCA does not climb into a rate it cannot dewarp from in time.
-        double TimeToDewarp(int rate_index)
-        { 
-            var offset = VSL.Controls.NoDewarpOffset? 0 : C.DewarpTime/(VSL.LandedOrSplashed? 2 : 1);
-            return VSL.Controls.WarpToTime-(offset+TimeNeededToDewarpFrom(rate_index))-VSL.Physics.UT;
+        bool CheckPhysicsWarp()
+        {
+            if(TimeWarp.WarpMode != TimeWarp.Modes.LOW)
+            {
+                TimeWarp.fetch.Mode = TimeWarp.Modes.LOW;
+                set_warp_rate(0, true);
+                return false;
+            }
+            return true;
         }
+
+        bool IncreaseRegularWarp(bool instant = false)
+        {
+            if(!CheckRegularWarp()) return false;
+            if(TimeWarp.CurrentRateIndex+1 == TimeWarp.fetch.warpRates.Length) return false;
+            if(!VSL.LandedOrSplashed)
+            {
+                var altitude = VSL.orbit.radius-VSL.Body.Radius;
+                if(TimeWarp.fetch.GetAltitudeLimit(TimeWarp.CurrentRateIndex+1, VSL.Body) > altitude)
+                    return false;
+            }
+            if(TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex] != TimeWarp.CurrentRate)
+                return false;
+            if(VSL.Physics.UT-warp_increase_attempt_time < C.WarpIncreaseDelay)
+                return false;
+            warp_increase_attempt_time = VSL.Physics.UT;
+            set_warp_rate(TimeWarp.CurrentRateIndex+1, instant);
+            return true;
+        }
+
+        bool DecreaseRegularWarp(bool instant = false)
+        {
+            if(!CheckRegularWarp()) return false;
+            if(TimeWarp.CurrentRateIndex == 0) return false;
+            set_warp_rate(TimeWarp.CurrentRateIndex-1, instant);
+            return true;
+        }
+
+        bool IncreasePhysicsWarp(bool instant = false)
+        {
+            if(!CheckPhysicsWarp()) return false;
+            if(TimeWarp.CurrentRateIndex+1 == TimeWarp.fetch.physicsWarpRates.Length) return false;
+            if(TimeWarp.fetch.physicsWarpRates[TimeWarp.CurrentRateIndex] != TimeWarp.CurrentRate)
+                return false;
+            if(VSL.Physics.UT-warp_increase_attempt_time < C.WarpIncreaseDelay)
+                return false;
+            warp_increase_attempt_time = VSL.Physics.UT;
+            set_warp_rate(TimeWarp.CurrentRateIndex+1, instant);
+            return true;
+        }
+
+        bool DecreasePhysicsWarp(bool instant = false)
+        {
+            if(!CheckPhysicsWarp()) return false;
+            if(TimeWarp.CurrentRateIndex == 0) return false;
+            set_warp_rate(TimeWarp.CurrentRateIndex-1, instant);
+            return true;
+        }
+
+        void WarpRegularAtRate(float max_rate, bool instant_on_increase = false, bool instant_on_decrease = true)
+        {
+            if(!CheckRegularWarp()) return;
+            if(TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex] > max_rate)
+                DecreaseRegularWarp(instant_on_decrease);
+            else if(TimeWarp.CurrentRateIndex+1 < TimeWarp.fetch.warpRates.Length &&
+                    TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex+1] <= max_rate)
+                IncreaseRegularWarp(instant_on_increase);
+        }
+
+        void WarpPhysicsAtRate(float max_rate, bool instant_on_increase = false, bool instant_on_decrease = true)
+        {
+            if(!CheckPhysicsWarp()) return;
+            if(TimeWarp.fetch.physicsWarpRates[TimeWarp.CurrentRateIndex] > max_rate)
+                DecreasePhysicsWarp(instant_on_decrease);
+            else if(TimeWarp.CurrentRateIndex+1 < TimeWarp.fetch.physicsWarpRates.Length &&
+                    TimeWarp.fetch.physicsWarpRates[TimeWarp.CurrentRateIndex+1] <= max_rate)
+                IncreasePhysicsWarp(instant_on_increase);
+        }
+
+        void WarpToUT(double ut, double max_rate = -1)
+        {
+            var target_ut = effective_warp_target(ut);
+            if(target_ut <= VSL.Physics.UT)
+                return;
+
+            if(max_rate < 0)
+                max_rate = Math.Min(C.MaxWarp, TimeWarp.fetch.warpRates[TimeWarp.fetch.warpRates.Length-1]);
+
+            double desired_rate;
+            if(C.UseQuickWarp)
+            {
+                desired_rate = 1;
+                if(VSL.orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL &&
+                   VSL.orbit.EndUT < target_ut)
+                {
+                    for(var i = 0; i < TimeWarp.fetch.warpRates.Length; i++)
+                    {
+                        if(i*Time.fixedDeltaTime*TimeWarp.fetch.warpRates[i] <= VSL.orbit.EndUT-VSL.Physics.UT)
+                            desired_rate = TimeWarp.fetch.warpRates[i]+0.1;
+                        else break;
+                    }
+                }
+                else
+                {
+                    for(var i = 0; i < TimeWarp.fetch.warpRates.Length; i++)
+                    {
+                        if(i*Time.fixedDeltaTime*TimeWarp.fetch.warpRates[i] <= target_ut-VSL.Physics.UT)
+                            desired_rate = TimeWarp.fetch.warpRates[i]+0.1;
+                        else break;
+                    }
+                }
+            }
+            else
+                desired_rate = target_ut-(VSL.Physics.UT+Time.fixedDeltaTime*TimeWarp.CurrentRateIndex);
+
+            desired_rate = Utils.Clamp(desired_rate, 1, max_rate);
+
+            if(!VSL.LandedOrSplashed &&
+               VSL.orbit.radius-VSL.Body.Radius < TimeWarp.fetch.GetAltitudeLimit(1, VSL.Body))
+                WarpPhysicsAtRate((float)Math.Min(desired_rate, 2), C.UseQuickWarp, true);
+            else
+                WarpRegularAtRate((float)desired_rate, C.UseQuickWarp, true);
+        }
+
+        bool altitude_rate_limited =>
+            !VSL.LandedOrSplashed &&
+            TimeWarp.WarpMode == TimeWarp.Modes.HIGH &&
+            TimeWarp.CurrentRateIndex == TimeWarp.fetch.GetMaxRateForAltitude(VSL.orbit.radius-VSL.Body.Radius, VSL.Body);
 
         public override void ProcessKeys()
         {
@@ -164,65 +300,52 @@ namespace ThrottleControlledAvionics
             }
         }
 
-        bool can_increase_rate
-        { 
-            get 
-            { 
-                return TimeWarp.CurrentRateIndex < 
-                    TimeWarp.fetch.GetMaxRateForAltitude(VSL.orbit.radius-VSL.Body.Radius, VSL.Body); 
-            } 
-        }
-
         protected override void Update()
         {
-            if(VSL.Controls.WarpToTime < 0)
+            var warp_to_time = VSL.Controls.WarpToTime;
+            if(warp_to_time < 0)
             {
-                reset_warp_step();
-                goto end;
+                Reset();
+                return;
             }
-            //try to catch the moment KSP or some other mod sets warp besides us
-            if(TimeWarp.CurrentRateIndex < last_warp_index && can_increase_rate && !expected_warp_decrease)
-            { 
+
+            // try to catch the moment KSP or some other mod sets warp besides us
+            if(TimeWarp.CurrentRateIndex < last_warp_index && !altitude_rate_limited &&
+               last_asked_index > 0 && last_asked_index != TimeWarp.CurrentRateIndex)
+            {
                 if(frames_to_skip < 0)
-                    frames_to_skip = TimeWarp.CurrentRateIndex * C.FramesToSkip;
-//                Log("current index {}, max index at alt {}, frames_to_skip {}",
-//                    TimeWarp.CurrentRateIndex, 
-//                    TimeWarp.fetch.GetMaxRateForAltitude(VSL.vessel.altitude, VSL.Body),
-//                    frames_to_skip);
+                    frames_to_skip = TimeWarp.CurrentRateIndex*C.FramesToSkip;
                 if(frames_to_skip-- > 0) return;
                 Message("TCA Time Warp was overridden.");
                 VSL.Controls.WarpToTime = -1;
-                CFG.WarpToNode = false; 
-                reset_warp_step();
-                goto end; 
+                CFG.WarpToNode = false;
+                Reset();
+                return;
             }
-            //dewarp if the warp was disabled, or LOW mode
-            if(VSL.Controls.WarpToTime > 0 && 
-               (!CFG.WarpToNode || 
-                TimeWarp.WarpMode == TimeWarp.Modes.LOW)) 
-                VSL.Controls.WarpToTime = 0;
-            if(VSL.Controls.WarpToTime <= VSL.Physics.UT && TimeWarp.CurrentRate.Equals(1))
-            { 
-                VSL.Controls.WarpToTime = -1;
-                reset_warp_step();
-                goto end;
-            }
-            if(!warp_step_settled)
-                goto end;
-            if(TimeToDewarp(TimeWarp.CurrentRateIndex) < 0)
+
+            // dewarp if the warp was disabled, or LOW mode
+            if(warp_to_time > 0 &&
+               (!CFG.WarpToNode || TimeWarp.WarpMode == TimeWarp.Modes.LOW))
             {
-                if(TimeWarp.CurrentRateIndex > 0)
-                    set_warp_rate(TimeWarp.CurrentRateIndex-1);
-                else if(TimeWarp.CurrentRate.Equals(1))
-                    VSL.Controls.WarpToTime = 0;
+                VSL.Controls.WarpToTime = 0;
+                warp_to_time = 0;
             }
-            else if(TimeWarp.CurrentRateIndex < TimeWarp.fetch.warpRates.Length-1 && 
-                    TimeWarp.fetch.warpRates[TimeWarp.CurrentRateIndex+1] <= C.MaxWarp &&
-                    (VSL.LandedOrSplashed || can_increase_rate) &&
-                    TimeToDewarp(TimeWarp.CurrentRateIndex+1) > 0)
-                set_warp_rate(TimeWarp.CurrentRateIndex+1);
-            end: Reset();
+
+            if(warp_to_time <= VSL.Physics.UT && rate_settled(1f))
+            {
+                VSL.Controls.WarpToTime = -1;
+                Reset();
+                return;
+            }
+
+            if(warp_to_time > 0)
+                WarpToUT(warp_to_time);
+            else if(TimeWarp.CurrentRateIndex > 0)
+                DecreaseRegularWarp(true);
+            else if(!rate_settled(1f))
+                set_warp_rate(0, true);
+
+            Reset();
         }
     }
 }
-

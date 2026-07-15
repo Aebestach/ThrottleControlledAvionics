@@ -306,7 +306,9 @@ namespace ThrottleControlledAvionics
                 if(GUI.Button(new Rect(WindowPos.width - 42f, 0f, 20f, 18f), NextVesselButton, Styles.label))
                     switch_vessel(FlightGlobals.Vessels.Prev);
             }
-            if(TCA.IsControllable)
+            var isControllable = TCA.IsControllable;
+            var activeTab = ActiveTab;
+            if(isControllable)
             {
                 GUILayout.BeginVertical();
                 GUILayout.BeginHorizontal();
@@ -331,7 +333,8 @@ namespace ThrottleControlledAvionics
                 GUILayout.EndHorizontal();
                 GUILayout.BeginHorizontal();
                 GUILayout.BeginVertical(Styles.white, GUILayout.MinHeight(ControlsHeight), GUILayout.ExpandWidth(false), GUILayout.ExpandHeight(true));
-                if(ActiveTab != null) ActiveTab.Draw();
+                if(activeTab != null) activeTab.Draw();
+                Utils.EnsureLayoutControl();
                 GUILayout.EndVertical();
                 tabs_scroll = GUILayout.BeginScrollView(tabs_scroll, Styles.white, GUILayout.ExpandHeight(true), GUILayout.Width(55));
                 for(int i = 0, AllTabsCount = AllTabs.Count; i < AllTabsCount; i++)
